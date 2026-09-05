@@ -148,6 +148,14 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   difference for that workload; it is not a physical Vita performance result.
   Requests spanning several views without one complete containing view, mixed
   TMEM layouts that need CPU readback, and color/depth aliasing remain limited.
+- CPU-written RGBA16/32 framebuffers can now be presented without a preceding
+  RDP draw. Host tests cover both formats, later CPU edits, byte readback, cache
+  pressure and out-of-range scanout. The separate Vita3K/Vulkan diagnostic shows
+  yellow above cyan, then yellow above magenta after a CPU update; both byte
+  readbacks exactly match guest RAM. Fully CPU-owned ranges avoid GPU readback.
+  This does not fix GPU-owned readback in Vita3K or establish the original boot
+  logo's timing. Interlaced scanout whose width differs from its RAM stride still
+  needs implementation.
 
 ## Runtime validation
 
@@ -188,6 +196,8 @@ loop, keeping the original allocation and texture-only fallback. Rabbit speed
 and Krazy Kong Klamour durations also carry the upstream lag adjustments; Klamour
 retains its original byte-sized difficulty value and expands it at the 16-bit
 timer consumer to avoid overwriting adjacent overlay data.
+An additional hook preserves the upstream opaque-black cover for a stopped
+transition beyond its completion threshold, with a private guest argument area.
 
 The eight host checks include caller-register/stack preservation, save
 eligibility, actor selection/compaction, actual generated deferred-free and photo

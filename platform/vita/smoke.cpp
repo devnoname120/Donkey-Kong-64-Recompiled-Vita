@@ -1,6 +1,7 @@
 #include "fast/rt64_fast_interpreter.h"
 #include "gbi/rt64_gbi_f3dex2.h"
 #include "gbi/rt64_gbi_rdp.h"
+#include "hle/rt64_vi.h"
 #include <psp2/ctrl.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
@@ -200,7 +201,27 @@ int main() {
         auto aliasAfter=sink->snapshotFramebuffer(aliasAddress,128);
         if(!aliasBefore || !aliasAfter) throw std::runtime_error("Color alias diagnostic is missing its GPU snapshots");
         trace("Color alias test prepared: original red/blue beside merged red/blue/green");
+        constexpr uint32_t cpuAddress=0x2e0000;
+        RT64::VI cpuVI{};
+        cpuVI.status.word=3; cpuVI.width=8; cpuVI.origin=cpuAddress+32;
+        cpuVI.hRegion.word=(108U<<16)|124U; cpuVI.vRegion.word=(37U<<16)|49U;
+        cpuVI.xTransform.word=512; cpuVI.yTransform.word=1024;
+        auto writeCPUImage=[&](bool changed) {
+            for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
+                const uint8_t color[4]={uint8_t(y<4 || changed?255:0),uint8_t(y<4 || !changed?255:0),uint8_t(y<4?0:255),255};
+                for(unsigned c=0;c<4;++c) {
+                    const uint32_t at=cpuAddress+(y*8+x)*4+c;
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+                    do_sb(state.RDRAM,0,at,color[c]);
+#else
+                    state.RDRAM[at^3]=color[c];
+#endif
+                }
+            }
+        };
+        writeCPUImage(false);
         for(unsigned frame=0;;++frame) {
+            if(frame<600) {
             interpreter.processDisplayLists(0x100,reinterpret_cast<RT64::DisplayList *>(state.fromRDRAM(0x100)));
             RT64::FastDraw triangle;
             triangle.colorAddress=0x100000; triangle.depthAddress=0x200000;
@@ -264,6 +285,23 @@ int main() {
             sink->present(0x100000);
             if(frame==0) trace("First GBI fill and RGB triangle presented");
             if(frame==119) trace("120 frames presented successfully");
+            } else {
+                if(frame==660) writeCPUImage(true);
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+                submit_framebuffer_writes(*sink);
+#endif
+                sink->present(cpuVI);
+                if(frame==600) trace("CPU-only VI scanout: expected yellow above cyan, with no RDP draw");
+                if(frame==660) trace("CPU-only VI update: expected yellow above magenta, with no RDP draw");
+                if(frame==601 || frame==661) {
+                    std::vector<uint8_t> bytes;
+                    if(!sink->readFramebuffer(cpuAddress,256,bytes) || bytes.size()!=256)
+                        throw std::runtime_error("CPU-only scanout readback failed");
+                    for(unsigned i=0;i<bytes.size();++i) if(bytes[i]!=state.RDRAM[(cpuAddress+i)^3])
+                        throw std::runtime_error("CPU-only scanout readback changed RAM bytes");
+                    trace("CPU-only scanout byte readback matched guest RAM");
+                }
+            }
             SceCtrlData pad{}; sceCtrlPeekBufferPositive(0,&pad,1);
             if(pad.buttons&SCE_CTRL_CIRCLE) break;
         }

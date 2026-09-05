@@ -1,5 +1,6 @@
 #include "recomp.h"
 #include <array>
+#include <bit>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -7,11 +8,13 @@
 
 extern "C" void dk64_vita_restore_helm_medals(uint8_t *,recomp_context *,uint32_t);
 extern "C" void dk64_vita_remove_cutscene_controllers(uint8_t *,recomp_context *);
+extern "C" int dk64_vita_cover_stopped_transition(uint8_t *,recomp_context *);
 static bool helm_complete=false;
 static unsigned flag_reads=0;
 static std::vector<unsigned> flags_written;
 static std::vector<gpr> actors_deleted;
 static bool compact_actor_list=false;
+static unsigned black_covers=0;
 static void check(bool value,const char *message) { if(!value) throw std::runtime_error(message); }
 extern "C" void isFlagSet(uint8_t *,recomp_context *ctx) {
     check(ctx->r29==0xffffffff80400000ULL,"flag query lost the guest stack");
@@ -37,6 +40,11 @@ extern "C" void deleteActor(uint8_t *rdram,recomp_context *ctx) {
         }
     }
     ctx->r2=0; ctx->r4=0xdead;
+}
+extern "C" void func_global_asm_80703374(uint8_t *rdram,recomp_context *ctx) {
+    check(ctx->r29==0xffffffff803fffe0ULL,"transition hook did not reserve its own guest argument area");
+    check(ctx->r5==0 && ctx->r6==0 && ctx->r7==0 && MEM_W(0x10,ctx->r29)==255,"transition cover was not opaque black");
+    ++black_covers; ctx->r2=ctx->r4+0x20; ctx->r4=0xdead;
 }
 int main() {
     try {
@@ -74,7 +82,17 @@ int main() {
         dk64_vita_remove_cutscene_controllers(rdram,&context);
         check(actors_deleted==std::vector<gpr>({actors[0],actors[3]}),"immediate deletion skipped the controller moved from the tail");
         check(MEM_HU(0,0xffffffff807fbb34ULL)==2,"immediate deletion removed the wrong number of actors"); unchanged();
-        std::puts("Gameplay fixes: save eligibility, five Helm flags, unrelated flags, controller selection and caller registers passed");
+        MEM_W(0,0xffffffff807fd888ULL)=std::bit_cast<int32_t>(28.0f);
+        check(!dk64_vita_cover_stopped_transition(rdram,&context),"transition cover triggered at the boundary"); unchanged();
+        MEM_W(0,0xffffffff807fd888ULL)=std::bit_cast<int32_t>(31.0f);
+        MEM_W(0,0xffffffff807fd88cULL)=std::bit_cast<int32_t>(0.25f);
+        check(!dk64_vita_cover_stopped_transition(rdram,&context),"transition cover bypassed an active animation"); unchanged();
+        MEM_W(0,0xffffffff807fd88cULL)=std::bit_cast<int32_t>(0.0f);
+        MEM_W(0x10,context.r29)=0x12345678;
+        check(dk64_vita_cover_stopped_transition(rdram,&context)==1 && black_covers==1,"completed transition did not draw its cover");
+        check(context.r2==context.r4+0x20 && MEM_W(0x10,context.r29)==0x12345678,"transition result or caller stack was corrupted");
+        context.r2=1; unchanged();
+        std::puts("Gameplay fixes: Helm flags, controller cleanup, transition cover and caller state passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }

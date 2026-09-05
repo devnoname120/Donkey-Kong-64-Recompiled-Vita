@@ -59,8 +59,8 @@
       "purpose": "Boot/logo rendering and initialization events",
       "disposition": "review_required",
       "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
+      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
     },
     {
       "source": "patches/boot_logos_patches.c",
@@ -69,18 +69,18 @@
       "purpose": "Boot-logo rendering, initialization and per-frame callbacks",
       "disposition": "review_required",
       "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_450.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
+      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
     },
     {
       "source": "patches/boot_logos_patches.c",
       "function": "func_global_asm_8060E1A8",
       "compiled": true,
-      "purpose": "EEPROM queues and post-load events",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/saveFile.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Notify desktop events after EEPROM initialization",
+      "disposition": "retained_original",
+      "reason": "The queue setup retains the same guest addresses/counts; the added behavior is recomp_on_eeprom_load. Vita uses the original EEPROM initialization and native save backend without desktop event exports.",
+      "evidence": "Reviewed the full replacement body, its named feature/event calls, and the current Vita control/build path. No new function-specific gameplay test is claimed.",
+      "next_action": "Revisit when adding the corresponding frontend feature or event API; retain explicit control/save regression coverage."
     },
     {
       "source": "patches/boot_logos_patches.c",
@@ -89,8 +89,8 @@
       "purpose": "Copy the CPU-drawn Nintendo logo for GPU presentation",
       "disposition": "review_required",
       "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_450.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
+      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
     },
     {
       "source": "patches/patches_balancing.c",
@@ -218,9 +218,9 @@
       "compiled": true,
       "purpose": "Process an expanded deferred decompression queue",
       "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_6AF80.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "reason": "The replacement drains the expanded deferred-decompression array used by getPointerTableFile. Vita retains the original queue/cleanup pair; its capacity under port-specific loading timing has not been established.",
+      "evidence": "Patch/reference loop comparison and the shared delayed_decompression_array/count. No dedicated queue-pressure runtime test.",
+      "next_action": "Audit producer, storage capacity and cleanup together with getPointerTableFile and startup queue initialization."
     },
     {
       "source": "patches/patches_draw.c",
@@ -228,9 +228,9 @@
       "compiled": true,
       "purpose": "Asset overrides and expanded deferred decompression",
       "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_6AF80.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "reason": "Mod asset overrides are not connected on Vita, but this replacement also changes deferred-decompression storage and ownership. Those capacity/cleanup changes cannot be dismissed solely as a frontend feature.",
+      "evidence": "Patch/reference comparison identifies both the override callback and expanded delayed-decompression queue. Only general boot/intro asset loading has been tested.",
+      "next_action": "Review with func_global_asm_8066AF40 and func_global_asm_805FBC5C; stress rapid asset/map loads before deciding which capacity changes to carry."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -368,9 +368,9 @@
       "compiled": true,
       "purpose": "Heap slots and rendering-buffer allocation",
       "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "reason": "This replacement changes heap-slot storage and rendering-buffer allocations together. Vita keeps original guest allocations; importing isolated constants would risk mismatching pointers and capacity.",
+      "evidence": "Patch allocation/storage code reviewed; complete generated-MIPS and budget equivalence remains unverified.",
+      "next_action": "Map original and replacement heap/framebuffer ranges and ownership, then test dense maps and allocation reuse."
     },
     {
       "source": "patches/patches_heap.c",
@@ -378,9 +378,9 @@
       "compiled": true,
       "purpose": "Music data loading and allocation size",
       "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "reason": "The replacement changes music allocation/loading size calculations. Vita retains original music loading; the audio wakeup fix does not establish allocation-size equivalence.",
+      "evidence": "The patch derives size from adjacent music-table offsets. Sustained buffer submission has been observed, but decoded-song fidelity and loading bounds have not been compared.",
+      "next_action": "Compare original size/alignment calculations and bank ownership, then validate representative music loads independently of audio underruns."
     },
     {
       "source": "patches/patches_heap.c",
@@ -436,21 +436,21 @@
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_80620F00",
       "compiled": true,
-      "purpose": "Camera/actor interpolation and cutscene behavior; Disable interpolation globally for a couple frames",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Suppress perspective interpolation during camera recovery",
+      "disposition": "retained_original",
+      "reason": "The extra lockdown protects interpolation history around camera changes. The reduced renderer does not maintain that history.",
+      "evidence": "Reviewed the full replacement body, its named feature/event calls, and the current Vita control/build path. No new function-specific gameplay test is claimed.",
+      "next_action": "Revisit when adding the corresponding frontend feature or event API; retain explicit control/save regression coverage."
     },
     {
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_8068A508",
       "compiled": true,
-      "purpose": "Remove two distance-based actor-model load/unload cases",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/done/code_8F050.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Disable two distance-dependent model load/unload cases",
+      "disposition": "retained_original",
+      "reason": "The removed cases swap alternate actor models by distance. Vita has no actor interpolation history and retains the original model loading and unloading behavior.",
+      "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
+      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
     },
     {
       "source": "patches/patches_interpolation.c",
@@ -676,11 +676,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80658E8C",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior; Remove x bound checks",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_55B20.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Relax projected X-bound culling",
+      "disposition": "retained_original",
+      "reason": "Upstream removes the X-bound rejection while retaining the Y bounds. Vita keeps the original 4:3 projection and its matching original visibility test.",
+      "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
+      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
     },
     {
       "source": "patches/patches_main.c",
@@ -766,21 +766,21 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_806522CC",
       "compiled": true,
-      "purpose": "Bypass chunk-bound culling",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_55B20.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Disable chunk rectangle culling",
+      "disposition": "retained_original",
+      "reason": "The replacement returns true unconditionally. Vita keeps the original chunk bounds because it has not widened the game projection.",
+      "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
+      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8062DBDC",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior; Was false",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Bypass map-frustum rejection",
+      "disposition": "retained_original",
+      "reason": "The replacement changes the rejection returns to true. The native path keeps original culling with the unchanged 4:3 camera.",
+      "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
+      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
     },
     {
       "source": "patches/patches_main.c",
@@ -816,11 +816,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80658134",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior; Disable X Viewport checks with depth buffer checking",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Remove selected viewport clipping passes",
+      "disposition": "retained_original",
+      "reason": "Upstream removes X viewport clipping passes. The current renderer does not expand the game projection, so the original clipper remains paired with it.",
+      "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
+      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
     },
     {
       "source": "patches/patches_main.c",
@@ -846,11 +846,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80704484",
       "compiled": true,
-      "purpose": "Spin transition bounds and mid-transition correction",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Cover stopped mid-map transitions and adjust desktop transition bounds",
+      "disposition": "partial",
+      "reason": "A native entry hook emits the upstream opaque-black cover when speed is zero and progress exceeds 28. It reserves its own guest argument area and returns the advanced display-list pointer. Other original transition paths remain; desktop no-overscan changes are not imported.",
+      "evidence": "The upstream stopped-transition branch and generated entry hook were checked. dk64_gameplay_fix_checks covers the threshold, active-animation rejection, black/alpha arguments, display-list result and caller-stack preservation.",
+      "next_action": "Validate map transitions in gameplay and review the remaining desktop bounds changes separately."
     },
     {
       "source": "patches/patches_main.c",
@@ -936,11 +936,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_806A370C",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Textbox glyph matrix/interpolation identities",
+      "disposition": "retained_original",
+      "reason": "The replacement adds textbox interpolation fields and matrix-group commands. Vita keeps the original text transforms and allocation layout; the reduced backend does not implement those extended commands.",
+      "evidence": "Full patch body and rt64_fast_unsupported.cpp; no textbox-specific runtime proof.",
+      "next_action": "Reassess when enabling the corresponding frontend, larger guest allocations or extended-GBI feature; retain explicit validation limits."
     },
     {
       "source": "patches/patches_matrix.c",
@@ -1536,21 +1536,21 @@
       "source": "patches/sound_options_patches.c",
       "function": "func_global_asm_8061D1FC",
       "compiled": true,
-      "purpose": "Frontend-controlled options, input and save flags",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Frontend analog-camera orbit and zoom",
+      "disposition": "retained_original",
+      "reason": "The additional orbit/zoom path is gated by analog_cam_enabled/get_analog_allowed and frontend sensitivity. Vita retains N64 C-button camera controls and does not enable that path.",
+      "evidence": "Reviewed the full replacement body, its named feature/event calls, and the current Vita control/build path. No new function-specific gameplay test is claimed.",
+      "next_action": "Revisit when adding the corresponding frontend feature or event API; retain explicit control/save regression coverage."
     },
     {
       "source": "patches/sound_options_patches.c",
       "function": "func_global_asm_80620628",
       "compiled": true,
-      "purpose": "Frontend-controlled options, input and save flags",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Preserve analog-camera position during camera recovery",
+      "disposition": "retained_original",
+      "reason": "The added guards avoid recentering an enabled desktop analog camera. That feature is not active in the current Vita control path, so the original recovery behavior is retained.",
+      "evidence": "Reviewed the full replacement body, its named feature/event calls, and the current Vita control/build path. No new function-specific gameplay test is claimed.",
+      "next_action": "Revisit when adding the corresponding frontend feature or event API; retain explicit control/save regression coverage."
     },
     {
       "source": "patches/sound_options_patches.c",
@@ -1566,11 +1566,11 @@
       "source": "patches/sound_options_patches.c",
       "function": "func_global_asm_806E65BC",
       "compiled": true,
-      "purpose": "Frontend-controlled options, input and save flags",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Frontend swimming-axis inversion",
+      "disposition": "retained_original",
+      "reason": "The replacement applies configured axis inversion to the original swimming controls. Vita currently uses its documented original N64 stick mapping.",
+      "evidence": "Reviewed the full replacement body, its named feature/event calls, and the current Vita control/build path. No new function-specific gameplay test is claimed.",
+      "next_action": "Revisit when adding the corresponding frontend feature or event API; retain explicit control/save regression coverage."
     },
     {
       "source": "patches/sound_options_patches.c",
@@ -1626,11 +1626,11 @@
       "source": "patches/sound_options_patches.c",
       "function": "isFlagSet",
       "compiled": true,
-      "purpose": "Desktop multiplayer visibility, flag-check events and temporary bank",
-      "disposition": "review_required",
-      "reason": "Vita retains original save flags while exposing only controller 0. The desktop multiplayer gate and event-based checks are not carried over.",
-      "evidence": "Patch/reference comparison and platform/vita/main.cpp controller mapping.",
-      "next_action": "Account for unsupported multiplayer menu behavior and flag-bank assumptions before claiming feature parity."
+      "purpose": "Frontend multiplayer gating, flag-check events and relocated temporary flags",
+      "disposition": "retained_original",
+      "reason": "Vita preserves original save-flag semantics and its paired original flag bank. It has no frontend multiplayer-disable toggle or mod flag events; controller presence is reported separately by the native input backend.",
+      "evidence": "Full patch body and platform/vita/main.cpp; only controller 0 is currently exposed. No multiplayer gameplay support is claimed.",
+      "next_action": "Reassess when enabling the corresponding frontend, larger guest allocations or extended-GBI feature; retain explicit validation limits."
     },
     {
       "source": "patches/sound_options_patches.c",
@@ -1676,11 +1676,11 @@
       "source": "patches/timing_fixes.c",
       "function": "func_global_asm_805FE4D4",
       "compiled": true,
-      "purpose": "Enable extended RDRAM, refresh metadata and camera interpolation groups",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_450.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Extended-RDRAM, refresh metadata and camera interpolation commands",
+      "disposition": "retained_original",
+      "reason": "Vita retains the original display-list prefix. The runtime reports 8 MiB to the unmodified guest allocator, despite reserving 32 MiB; no desktop patch globals or interpolation commands are inserted. Extended GBI still needs implementation before importing this replacement.",
+      "evidence": "librecomp/src/recomp.cpp sets osMemSize to 8 MiB; rt64_fast_unsupported.cpp rejects extended GBI; timing is supplied by native VI/frame helpers.",
+      "next_action": "Reassess when enabling the corresponding frontend, larger guest allocations or extended-GBI feature; retain explicit validation limits."
     }
   ],
   "reference_headers": {

@@ -1,9 +1,27 @@
 // Gameplay corrections from upstream patches, without desktop UI/interpolation.
 #include "recomp.h"
+#include <bit>
 
 extern "C" void isFlagSet(uint8_t *,recomp_context *);
 extern "C" void setFlag(uint8_t *,recomp_context *);
 extern "C" void deleteActor(uint8_t *,recomp_context *);
+extern "C" void func_global_asm_80703374(uint8_t *,recomp_context *);
+
+extern "C" int dk64_vita_cover_stopped_transition(uint8_t *rdram,recomp_context *ctx) {
+    const float speed=std::bit_cast<float>(uint32_t(MEM_W(0,0xffffffff807fd88cULL)));
+    const float progress=std::bit_cast<float>(uint32_t(MEM_W(0,0xffffffff807fd888ULL)));
+    if(speed!=0.0f || !(progress>28.0f)) return 0;
+    // This hook runs before the original prologue. Reserve our own outgoing
+    // argument area for the fifth (alpha) argument instead of touching the
+    // caller's locals. Only the returned display-list pointer is observable.
+    recomp_context call=*ctx;
+    call.r29=ADD32(call.r29,-0x20);
+    call.r5=call.r6=call.r7=0;
+    do_sw(rdram,0x10,call.r29,255);
+    func_global_asm_80703374(rdram,&call);
+    ctx->r2=call.r2;
+    return 1;
+}
 
 extern "C" void dk64_vita_restore_helm_medals(uint8_t *rdram,recomp_context *ctx,uint32_t existing_file) {
     if(!existing_file) return;

@@ -26,6 +26,9 @@ text = "{ extern void dk64_vita_restore_helm_medals(uint8_t*, recomp_context*, u
 func = "playCutscene"
 before_vram = 0x8061CCCC
 text = "{ extern void dk64_vita_remove_cutscene_controllers(uint8_t*, recomp_context*); dk64_vita_remove_cutscene_controllers(rdram, ctx); }"
+[[patches.hook]]
+func = "func_global_asm_80704484"
+text = "{ extern int dk64_vita_cover_stopped_transition(uint8_t*, recomp_context*); if (dk64_vita_cover_stopped_transition(rdram, ctx)) return; }"
 
 # Upstream removes the uncached corruption check inside the deferred-free
 # routine, not the routine itself. Supply the expected comparison value in t7

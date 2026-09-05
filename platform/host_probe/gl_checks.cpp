@@ -78,6 +78,42 @@ static void checkPresentation(ProbeEGL &platform) {
     vi.origin=0x10000; sink->present(vi); checkPixel({0,0,0});
     sink->present(draw.colorAddress); checkPixel({64,128,191});
 }
+static void checkCPUScanout(ProbeEGL &platform) {
+    batching=true;
+    std::vector<uint32_t> memory(0x20000/4);
+    auto *rdram=reinterpret_cast<uint8_t *>(memory.data());
+    auto sink=platform.createSink(); sink->setRDRAM(rdram,memory.size()*4);
+    RT64::VI vi{};
+    vi.width=8; vi.hRegion.word=(108U<<16)|124U;
+    vi.vRegion.word=(37U<<16)|49U; vi.xTransform.word=512; vi.yTransform.word=1024;
+    auto checkPixel=[&](int y,std::array<int,3> expected) {
+        uint8_t rgba[4]{}; glReadPixels(480,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+        if(glGetError()!=GL_NO_ERROR) throw std::runtime_error("CPU VI screenshot readback failed");
+        for(unsigned c=0;c<3;++c) if(std::abs(int(rgba[c])-expected[c])>2)
+            throw std::runtime_error("CPU-only VI framebuffer was not displayed correctly");
+    };
+    for(unsigned bytes:{2U,4U}) {
+        const uint32_t base=0x400+bytes*0x100;
+        for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
+            const uint32_t at=base+(y*8+x)*bytes;
+            if(bytes==2) { const uint16_t color=y<4?0xf801:0x003f; rdram[at^3]=color>>8; rdram[(at+1)^3]=color; }
+            else { const uint8_t color[]={uint8_t(y<4?255:0),0,uint8_t(y<4?0:255),255}; for(unsigned c=0;c<4;++c) rdram[(at+c)^3]=color[c]; }
+        }
+        vi.status.word=bytes==2?2:3; vi.origin=base+vi.width*bytes;
+        sink->present(vi); checkPixel(400,{255,0,0}); checkPixel(120,{0,0,255});
+        if(sink->snapshotFramebuffer(base,8*8*bytes)) throw std::runtime_error("CPU scanout incorrectly claimed GPU ownership");
+        std::vector<uint8_t> read;
+        if(!sink->readFramebuffer(base+1,11,read) || read.size()!=11) throw std::runtime_error("CPU scanout readback failed");
+        for(unsigned i=0;i<read.size();++i) if(read[i]!=rdram[(base+1+i)^3]) throw std::runtime_error("CPU scanout readback changed guest bytes");
+        // A CPU edit must reach the next scanout without an RDP draw.
+        for(unsigned i=0;i<8*8*bytes;++i) rdram[(base+i)^3]=0xff;
+        sink->present(vi); checkPixel(400,{255,255,255}); checkPixel(120,{255,255,255});
+    }
+    // Many unrelated CPU screens must not exhaust the GPU framebuffer cache.
+    vi.status.word=2;
+    for(unsigned n=0;n<24;++n) { vi.origin=0x2000+n*0x100+16; sink->present(vi); checkPixel(272,{0,0,0}); }
+    vi.origin=memory.size()*4+16; sink->present(vi); checkPixel(272,{0,0,0});
+}
 static void checkReadback(ProbeEGL &platform) {
     batching=true;
     auto sink=platform.createSink();
@@ -397,6 +433,7 @@ int main() {
                 throw std::runtime_error("Texture-unit binding or cached LOD uniform update is incorrect");
         }
         checkPresentation(*platform);
+        checkCPUScanout(*platform);
         checkReadback(*platform);
         checkColorImageAliases(*platform);
         checkColorImageViewRetirement(*platform);
