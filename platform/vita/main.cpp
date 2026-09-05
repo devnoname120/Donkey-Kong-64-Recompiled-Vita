@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <psp2/ctrl.h>
+#include <psp2/power.h>
 #include <psp2/io/stat.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/kernel/threadmgr.h>
@@ -155,6 +156,17 @@ int main() {
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
 #endif
     try {
+        // Match Ghostship's Vita clock requests without lowering a higher
+        // frequency already selected by the device's performance settings.
+        if(scePowerGetArmClockFrequency()<444) scePowerSetArmClockFrequency(444);
+        if(scePowerGetBusClockFrequency()<222) scePowerSetBusClockFrequency(222);
+        if(scePowerGetGpuClockFrequency()<222) scePowerSetGpuClockFrequency(222);
+        if(scePowerGetGpuXbarClockFrequency()<166) scePowerSetGpuXbarClockFrequency(166);
+#if DK64_VITA_DIAGNOSTICS
+        vita_log("Vita clocks (MHz): CPU=%d bus=%d GPU=%d crossbar=%d",
+            scePowerGetArmClockFrequency(),scePowerGetBusClockFrequency(),
+            scePowerGetGpuClockFrequency(),scePowerGetGpuXbarClockFrequency());
+#endif
         if(SDL_Init(SDL_INIT_AUDIO|SDL_INIT_TIMER)<0) throw std::runtime_error(SDL_GetError());
         sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
         recomp::register_config_path(data_directory);

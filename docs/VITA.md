@@ -151,6 +151,12 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
 
 ## Runtime validation
 
+Startup requests the same clock frequencies as Ghostship's Vita port: CPU 444 MHz,
+bus/GPU 222 MHz and GPU crossbar 166 MHz. Requests only raise clocks below those
+values, preserving higher device settings. Vita3K reports the requested values
+after initialization; an emulator does not measure the physical performance
+benefit. The diagnostic clock report is absent when diagnostics are disabled.
+
 Earlier POSIX-semaphore runs intermittently reported:
 
 ```
