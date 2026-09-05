@@ -65,13 +65,14 @@ add_library(probe_game STATIC ${game_c} ${game_cpp})
 target_compile_definitions(probe_game PRIVATE RECOMP_TRACK_MEMORY_WRITES)
 target_include_directories(probe_game PRIVATE "${repo}/include" "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 target_compile_options(probe_game PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
-add_executable(dk64_runtime_probe main.cpp
+add_executable(dk64_runtime_probe main.cpp resource_audit.cpp
     ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
     "${repo}/src/game/rom_decompression.cpp" "${repo}/rsp/n_aspMain.cpp")
 target_include_directories(dk64_runtime_probe PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/thirdparty/sse2neon")
 target_link_libraries(dk64_runtime_probe PRIVATE probe_game librecomp ultramodern rt64 pthread)
 target_link_options(dk64_runtime_probe PRIVATE -Wl,--gc-sections -Wl,--wrap=osPiRawStartDma_recomp)
+target_link_options(dk64_runtime_probe PRIVATE -Wl,--wrap=getPointerTableFile -Wl,--wrap=func_global_asm_8066AF40)
 add_executable(dk64_timing_checks ../vita/timing.cpp ../vita/test_timing.cpp)
 target_include_directories(dk64_timing_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_timing_checks COMMAND dk64_timing_checks)
@@ -92,6 +93,26 @@ add_generated_check_function(dk64_photo_capture_checks func_global_asm_806FFEAC)
 target_include_directories(dk64_photo_capture_checks PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_photo_capture_checks COMMAND dk64_photo_capture_checks)
+add_executable(dk64_decompression_queue_checks ../vita/test_decompression_queue.cpp)
+add_generated_check_function(dk64_decompression_queue_checks getPointerTableFile)
+add_generated_check_function(dk64_decompression_queue_checks func_global_asm_8066AF40)
+add_generated_check_function(dk64_decompression_queue_checks func_global_asm_8066AEE4)
+target_include_directories(dk64_decompression_queue_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_decompression_queue_checks COMMAND dk64_decompression_queue_checks)
+add_executable(dk64_music_loading_checks ../vita/test_music_loading.cpp)
+add_generated_check_function(dk64_music_loading_checks func_global_asm_8060A1B0)
+target_include_directories(dk64_music_loading_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_music_loading_checks COMMAND dk64_music_loading_checks)
+add_executable(dk64_timer_delivery_checks ../vita/test_timer_delivery.cpp
+    "${repo}/lib/N64ModernRuntime/ultramodern/src/timer.cpp")
+target_include_directories(dk64_timer_delivery_checks PRIVATE
+    "${repo}/lib/N64ModernRuntime/ultramodern/include"
+    "${repo}/lib/N64ModernRuntime/thirdparty"
+    "${repo}/lib/N64ModernRuntime/thirdparty/concurrentqueue")
+target_link_libraries(dk64_timer_delivery_checks PRIVATE pthread)
+add_test(NAME dk64_timer_delivery_checks COMMAND dk64_timer_delivery_checks)
 add_executable(dk64_readback_checks ../vita/framebuffer.cpp ../vita/test_framebuffer.cpp)
 target_include_directories(dk64_readback_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include"
     "${repo}/lib/N64ModernRuntime/librecomp/include" "${repo}/lib/N64ModernRuntime/ultramodern/include"

@@ -216,21 +216,21 @@
       "source": "patches/patches_draw.c",
       "function": "func_global_asm_8066AF40",
       "compiled": true,
-      "purpose": "Process an expanded deferred decompression queue",
-      "disposition": "review_required",
-      "reason": "The replacement drains the expanded deferred-decompression array used by getPointerTableFile. Vita retains the original queue/cleanup pair; its capacity under port-specific loading timing has not been established.",
-      "evidence": "Patch/reference loop comparison and the shared delayed_decompression_array/count. No dedicated queue-pressure runtime test.",
-      "next_action": "Audit producer, storage capacity and cleanup together with getPointerTableFile and startup queue initialization."
+      "purpose": "Drain the expanded deferred-decompression array",
+      "disposition": "retained_original",
+      "reason": "The original drain stays paired with the retained 192-entry producer and storage. It frees compressed inputs through the original decoder wrapper and releases its shared workspace after draining.",
+      "evidence": "dk64_decompression_queue_checks executes the generated drain and ownership wrapper: all 192 completions are consumed, 96 compressed inputs and one workspace are released exactly once, and all returned outputs remain live.",
+      "next_action": "Keep producer, capacities and cleanup paired; extend actual-game queue-pressure coverage when adding new content paths."
     },
     {
       "source": "patches/patches_draw.c",
       "function": "getPointerTableFile",
       "compiled": true,
-      "purpose": "Asset overrides and expanded deferred decompression",
-      "disposition": "review_required",
-      "reason": "Mod asset overrides are not connected on Vita, but this replacement also changes deferred-decompression storage and ownership. Those capacity/cleanup changes cannot be dismissed solely as a frontend feature.",
-      "evidence": "Patch/reference comparison identifies both the override callback and expanded delayed-decompression queue. Only general boot/intro asset loading has been tested.",
-      "next_action": "Review with func_global_asm_8066AF40 and func_global_asm_805FBC5C; stress rapid asset/map loads before deciding which capacity changes to carry."
+      "purpose": "Asset override callback and expansion of deferred-loading capacity",
+      "disposition": "retained_original",
+      "reason": "Vita retains the complete original 192-entry job/DMA/completion-queue system. The upstream 1024-entry expansion and mod asset override callback are not selected with the current original asset/draw-distance paths.",
+      "evidence": "The actual generated producer/drain/decoder-ownership routines pass 192 mixed jobs, cache/direct-pointer paths, immediate loading and the 193rd-job guard. A 120 s host adventure run observed 98 pending jobs at peak across 5638 asset requests; transport/codec are modeled in the focused fixture.",
+      "next_action": "Reassess capacity together with all three storage arrays if asset overrides or longer draw distances are enabled; later dense-map stress remains useful."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -376,11 +376,11 @@
       "source": "patches/patches_heap.c",
       "function": "func_global_asm_8060A1B0",
       "compiled": true,
-      "purpose": "Music data loading and allocation size",
-      "disposition": "review_required",
-      "reason": "The replacement changes music allocation/loading size calculations. Vita retains original music loading; the audio wakeup fix does not establish allocation-size equivalence.",
-      "evidence": "The patch derives size from adjacent music-table offsets. Sustained buffer submission has been observed, but decoded-song fidelity and loading bounds have not been compared.",
-      "next_action": "Compare original size/alignment calculations and bank ownership, then validate representative music loads independently of audio underruns."
+      "purpose": "Static music scratch storage and music-load event callback",
+      "disposition": "retained_original",
+      "reason": "The original code already subtracts adjacent music-table offsets and rounds odd byte counts up. Vita retains its paired 0x8000-byte scratch allocation/free and original player buffers; the desktop static scratch buffer and mod callback are not imported.",
+      "evidence": "Generated instructions 0x8060A2CC..0x8060A2F8 confirm the same size calculation. dk64_music_loading_checks exercises four channels, even/odd spans, loader flags, sequence setup, scratch release and guest-stack restoration.",
+      "next_action": "Measure stop/poll timing and decoded audio fidelity separately; this ownership/size check does not resolve audio underruns."
     },
     {
       "source": "patches/patches_heap.c",
@@ -668,9 +668,9 @@
       "compiled": true,
       "purpose": "Startup queue sizes, wait timing and initialization ordering",
       "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "reason": "The original decompression completion queue is coherently sized to 192 and is retained with its producer/storage. The replacement also changes initial delay and sound ordering, which remain part of the unfinished boot-sequence review.",
+      "evidence": "Generated initializer at 0x805FBCAC passes capacity 0xc0. Queue boundary/ownership checks pass and the observed host peak was 98. Original red-logo/sound timing has not yet been verified.",
+      "next_action": "Keep the 192-entry storage group intact; finish the separate boot-logo, initial-delay and sound-order review before closing this entire replacement."
     },
     {
       "source": "patches/patches_main.c",

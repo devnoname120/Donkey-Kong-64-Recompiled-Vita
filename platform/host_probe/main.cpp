@@ -26,6 +26,7 @@ extern RspUcodeFunc n_aspMain;
 static std::atomic<unsigned> completed_tasks{0};
 static std::atomic<unsigned> audio_buffers{0};
 static std::atomic<uint64_t> audio_samples{0};
+void report_resource_audit();
 static uint8_t *game_memory=nullptr;
 static auto start=std::chrono::steady_clock::now();
 static int run_seconds=45, present_ms=0;
@@ -217,6 +218,7 @@ int main(int argc,char **argv) {
         if(std::chrono::steady_clock::now()-start>=std::chrono::seconds(run_seconds)) {
             vita_log("PROBE elapsed=%d completed_tasks=%u",run_seconds,completed_tasks.load());
             vita_log("PROBE audio_buffers=%u stereo_frames=%llu",audio_buffers.load(),static_cast<unsigned long long>(audio_samples.load()/2));
+            report_resource_audit();
             // This bounded diagnostic terminates its whole process. It does not
             // claim to exercise the game's normal shutdown sequence.
             // A few startup buffers do not establish that the audio scheduler

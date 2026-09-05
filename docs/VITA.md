@@ -199,12 +199,35 @@ timer consumer to avoid overwriting adjacent overlay data.
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
 
-The eight host checks include caller-register/stack preservation, save
+The eleven host checks include caller-register/stack preservation, save
 eligibility, actor selection/compaction, actual generated deferred-free and photo
 capture routines, and minigame timing boundaries. The removed-check and photo
 tests failed before their hooks were added. Photo testing isolates the game's
 color conversion. Full affected-save, repeated Owl Race, fairy-photo and
 minigame playthroughs remain required; these focused checks do not replace them.
+
+The deferred asset-loading audit retains the original 192-entry job array, DMA
+descriptor array and completion queue as one unit. A generated-code regression
+fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,
+cache/direct-pointer and immediate paths, and verifies cleanup ownership. Its
+DMA and codec are modeled. The generated music loader also passes four-channel,
+even/odd size and scratch-lifetime checks: the original already rounds the
+difference between adjacent music-table offsets to an even size. These results
+do not justify importing the desktop 1024-entry queue or static music workspace.
+Host-only asset counters observed a peak of 98 jobs and 92 completions during
+boot, menu, story and Training Grounds runs; later dense maps remain untested.
+
+Those runs also exposed an invalid timer notification to queue address zero.
+The runtime now suppresses null-queue notifications, matching the original
+libultra interrupt handler. It also finishes timer reads and periodic rearming
+before publishing a completion: DK64 uses one-shot timers on the caller's stack,
+which may be reused as soon as the receiver wakes. A deterministic regression
+using the actual timer worker fails both with the old code and with only the
+null-queue guard, then passes with the ordering fix. Three subsequent 70-second
+host runs reached Training Grounds and completed about 1,990 graphics tasks and
+2,020 audio buffers each without the crash. The precise timer instance behind
+the observed queue-zero event was not established. These bounded runs are not
+proof of complete timer concurrency correctness or physical-Vita stability.
 
 Earlier POSIX-semaphore runs intermittently reported:
 
