@@ -17,6 +17,7 @@ if(DK64_VITA_RUNTIME)
 endif()
 
 option(DK64_VITA_GAME "Build DK64 from the generated local ROM sources" ON)
+option(DK64_VITA_DIAGNOSTICS "Enable Vita log files and diagnostic counters" ON)
 if(DK64_VITA_GAME)
     if(NOT DK64_VITA_RUNTIME)
         message(FATAL_ERROR "DK64_VITA_GAME requires DK64_VITA_RUNTIME")
@@ -48,10 +49,15 @@ if(DK64_VITA_GAME)
     option(DK64_VITA_TRACE_RENDERER "Capture startup and intro draws without function instrumentation" OFF)
     option(DK64_VITA_SCRIPTED_INPUT "Run the Adventure integration probe with separate saves" OFF)
     option(DK64_VITA_SCRIPTED_PAUSE "Exercise pause and resume during the Adventure probe" OFF)
+    if(NOT DK64_VITA_DIAGNOSTICS AND (DK64_VITA_PROFILE_FUNCTIONS OR DK64_VITA_TRACE_RENDERER
+        OR DK64_VITA_SCRIPTED_INPUT OR DK64_VITA_SCRIPTED_PAUSE OR RT64_FAST_VALIDATE_UPLOADS))
+        message(FATAL_ERROR "Diagnostic instrumentation and scripted inputs require DK64_VITA_DIAGNOSTICS=ON")
+    endif()
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_INPUT=$<BOOL:${DK64_VITA_SCRIPTED_INPUT}>)
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_PAUSE=$<BOOL:${DK64_VITA_SCRIPTED_PAUSE}>)
     set_property(SOURCE renderer_context.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_TRACE_RENDERER=$<BOOL:${DK64_VITA_TRACE_RENDERER}>)
     target_compile_definitions(DK64Recompiled PRIVATE DK64_VITA_PROFILE_FUNCTIONS=$<BOOL:${DK64_VITA_PROFILE_FUNCTIONS}>)
+    target_compile_definitions(DK64Recompiled PRIVATE DK64_VITA_DIAGNOSTICS=$<BOOL:${DK64_VITA_DIAGNOSTICS}>)
     target_compile_options(DK64Recompiled PRIVATE -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard
         -fno-strict-aliasing -ffunction-sections -fdata-sections)
     target_include_directories(DK64Recompiled PRIVATE ${CMAKE_SOURCE_DIR}/include ${vita_recompiled_dir}
@@ -61,6 +67,9 @@ if(DK64_VITA_GAME)
         SceAudio_stub SceAudioIn_stub SceCtrl_stub SceTouch_stub SceHid_stub SceMotion_stub
         SceIme_stub SceAppUtil_stub ScePower_stub SceAppMgr_stub SceSysmodule_stub m)
     target_link_options(DK64Recompiled PRIVATE -Wl,--gc-sections -Wl,--wrap=osPiRawStartDma_recomp)
+    if(NOT DK64_VITA_DIAGNOSTICS)
+        target_link_options(DK64Recompiled PRIVATE -Wl,--strip-debug)
+    endif()
     if(DK64_VITA_PROFILE_FUNCTIONS)
         target_link_options(DK64Recompiled PRIVATE -Wl,--wrap=osSetTimer_recomp
             -Wl,--wrap=osSetEventMesg_recomp -Wl,--wrap=osRecvMesg_recomp

@@ -296,6 +296,33 @@ contains no ROM. Put the original, big-endian US ROM at
 Current controls: left stick for movement, Cross for A, Square for B, L for Z,
 R for R, Start for Start, D-pad for D-pad, and right stick for C buttons.
 
+### Hardware test package without diagnostics
+
+After generating the game sources, use a separate build directory and a vitaGL
+image without shader or file logging:
+
+```sh
+docker build --platform linux/amd64 -f platform/vita/Dockerfile \
+    --build-arg VITAGL_SHARK_LOG=0 --build-arg VITAGL_LOG_ERRORS=0 \
+    -t dk64-vita-build-quiet .
+docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build-quiet \
+    cmake -S . -B build/vita-hardware -DDK64_VITA=ON \
+    -DDK64_VITA_DIAGNOSTICS=OFF -DDK64_VITA_PROFILE_FUNCTIONS=OFF \
+    -DDK64_VITA_TRACE_RENDERER=OFF -DDK64_VITA_SCRIPTED_INPUT=OFF \
+    -DDK64_VITA_SCRIPTED_PAUSE=OFF -DRT64_FAST_VALIDATE_UPLOADS=OFF \
+    -DCMAKE_BUILD_TYPE=Release
+docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build-quiet \
+    cmake --build build/vita-hardware --target DK64Recompiled.vpk-vpk -j6
+```
+
+The package is `build/vita-hardware/platform/vita/DK64Recompiled.vpk`. It uses
+normal controls and saves, removes the frontend log files, diagnostic counters,
+audio peak scans and debug sections, and rejects configurations that enable
+scripted inputs or instrumentation. The image retains `NO_SPLASHSCREEN=1` and the
+pinned vitaShaRK revision. The ROM and `ur0:data/libshacccg.suprx` shader compiler
+must be supplied separately on the Vita. Removing diagnostics does not change the
+port's experimental compatibility status.
+
 Known validation issue: Vita3K presents the diagnostic correctly, but vitaGL's
 direct CPU `glReadPixels` path returns black for its offscreen framebuffer. Use
 Vita3K's native screenshot capture when checking presentation. CPU framebuffer

@@ -28,6 +28,7 @@ unsigned int sceUserMainThreadStackSize = 2 * 1024 * 1024;
 // Vita pthreads otherwise default to 32 KiB. Recompiled call chains and the
 // runtime shader compiler execute on std::thread workers, not the main thread.
 unsigned int _pthread_stack_default_user = 2 * 1024 * 1024;
+#if DK64_VITA_DIAGNOSTICS
 static std::atomic<uint8_t *> game_rdram{nullptr};
 
 void vita_log(const char *format, ...) {
@@ -37,6 +38,7 @@ void vita_log(const char *format, ...) {
     SceUID fd=sceIoOpen(path.c_str(),SCE_O_WRONLY|SCE_O_CREAT|SCE_O_APPEND,0777);
     if(fd>=0) { sceIoWrite(fd,message,std::strlen(message)); sceIoWrite(fd,"\n",1); sceIoClose(fd); }
 }
+#endif
 
 extern "C" void recomp_entrypoint(uint8_t *,recomp_context *);
 extern gpr get_entrypoint_address();
@@ -66,11 +68,13 @@ namespace {
         for(size_t i=0;i+1<count;i+=2) { swapped[i]=samples[i+1]; swapped[i+1]=samples[i]; }
         if(SDL_QueueAudio(audio_device,swapped.data(),swapped.size()*sizeof(int16_t))<0)
             throw std::runtime_error(SDL_GetError());
+#if DK64_VITA_DIAGNOSTICS
         static bool reported_audio=false;
         if(!reported_audio) {
             int peak=0; for(int16_t sample:swapped) peak=std::max(peak,std::abs(int(sample)));
             if(peak) { vita_log("First non-silent audio buffer: %u samples, peak=%d",unsigned(count),peak); reported_audio=true; }
         }
+#endif
     }
     size_t audio_remaining() {
         std::lock_guard lock(audio_mutex);
@@ -85,10 +89,12 @@ namespace {
 #endif
         SceCtrlData pad{};
         if(sceCtrlPeekBufferPositive(0,&pad,1)<0) return false;
+#if DK64_VITA_DIAGNOSTICS
         static bool reported_input=false;
         if(!reported_input) { vita_log("Controller input callback active"); reported_input=true; }
         static unsigned input_polls=0;
         if(++input_polls%120==0) vita_log("Controller polls: %u",input_polls);
+#endif
         *buttons=0;
         const std::pair<uint32_t,uint16_t> mapping[]={{SCE_CTRL_CROSS,0x8000},{SCE_CTRL_SQUARE,0x4000},
             {SCE_CTRL_LTRIGGER,0x2000},{SCE_CTRL_START,0x1000},{SCE_CTRL_UP,0x0800},{SCE_CTRL_DOWN,0x0400},
@@ -99,8 +105,10 @@ namespace {
         if(pad.rx>192) *buttons|=0x0001;
         if(pad.ry<64) *buttons|=0x0008;
         if(pad.ry>192) *buttons|=0x0004;
+#if DK64_VITA_DIAGNOSTICS
         static uint16_t last_buttons=0;
         if(*buttons!=last_buttons) { vita_log("Controller buttons: Vita=%08x N64=%04x",pad.buttons,unsigned(*buttons)); last_buttons=*buttons; }
+#endif
         *x=(int(pad.lx)-128)/127.0f; *y=(128-int(pad.ly))/127.0f;
         *x=std::clamp(*x,-1.0f,1.0f); *y=std::clamp(*y,-1.0f,1.0f);
         if(std::abs(*x)<0.12f) *x=0;
@@ -119,6 +127,7 @@ namespace {
 int main() {
     sceIoMkdir(data_directory,0777);
     std::set_terminate([] {
+#if DK64_VITA_DIAGNOSTICS
         try {
             if(auto error=std::current_exception()) std::rethrow_exception(error);
         } catch(const std::exception &e) { vita_log("Unhandled runtime exception: %s",e.what()); }
@@ -137,11 +146,14 @@ int main() {
                 idle->id,idle->priority,uint32_t(idle->queue),uint32_t(idle->next),static_cast<void *>(idle->context),
                 uint32_t(ultramodern::thread_queue_peek(rdram,ultramodern::running_queue)));
         }
+#endif
         sceKernelExitProcess(1);
     });
+#if DK64_VITA_DIAGNOSTICS
     std::freopen((std::string(data_directory)+"/runtime.log").c_str(),"w",stdout);
     std::freopen((std::string(data_directory)+"/error.log").c_str(),"w",stderr);
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
+#endif
     try {
         if(SDL_Init(SDL_INIT_AUDIO|SDL_INIT_TIMER)<0) throw std::runtime_error(SDL_GetError());
         sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
@@ -153,7 +165,9 @@ int main() {
         game.save_type=recomp::SaveType::Eep16k; game.is_enabled=true;
         game.entrypoint_address=get_entrypoint_address(); game.entrypoint=&recomp_entrypoint;
         game.on_init_callback=[](uint8_t *rdram,recomp_context *ctx) {
+#if DK64_VITA_DIAGNOSTICS
             game_rdram.store(rdram);
+#endif
             dk64::dk_on_init(rdram,ctx);
         };
         recomp::register_game(game);
@@ -175,7 +189,9 @@ int main() {
         vita_log("Scripted Adventure validation enabled; separate ROM and saves at %s",data_directory);
 #endif
         recomp::start(config);
+#if DK64_VITA_DIAGNOSTICS
         game_rdram.store(nullptr);
+#endif
         if(audio_device) SDL_CloseAudioDevice(audio_device);
         SDL_Quit();
     } catch(const std::exception &e) { vita_log("DK64 startup failed: %s",e.what()); return 1; }

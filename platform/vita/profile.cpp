@@ -1,4 +1,5 @@
 #include "log.h"
+#if DK64_VITA_DIAGNOSTICS
 #if DK64_VITA_PROFILE_FUNCTIONS
 #include <atomic>
 #include <cstdint>
@@ -99,4 +100,5 @@ extern "C" void __wrap_osSpTaskStartGo_recomp(uint8_t *rdram,recomp_context *ctx
 }
 #else
 void vita_log_guest_profile() {}
+#endif
 #endif

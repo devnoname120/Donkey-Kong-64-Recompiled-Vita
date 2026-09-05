@@ -48,9 +48,11 @@ class VitaRendererContext final : public ultramodern::renderer::RendererContext 
     std::unique_ptr<RT64::FastDrawSink> sink;
     std::unique_ptr<RT64::State> state;
     RT64::Interpreter interpreter;
+#if DK64_VITA_DIAGNOSTICS
     uint64_t tasks = 0;
     uint64_t task_time_us = 0;
     unsigned vi_updates = 0;
+#endif
 public:
     explicit VitaRendererContext(uint8_t *rdram) {
         chosen_api = ultramodern::renderer::GraphicsApi::Auto;
@@ -72,20 +74,26 @@ public:
     void enable_instant_present() override {}
     bool defer_rsp_completion() const override { return true; }
     void send_dl(const OSTask *task) override {
+#if DK64_VITA_DIAGNOSTICS
         if(tasks<3) vita_log("Entering graphics task %llu",static_cast<unsigned long long>(tasks+1));
+#endif
         try {
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
             static_cast<TraceSink *>(sink.get())->startTask(tasks+1);
 #endif
+#if DK64_VITA_DIAGNOSTICS
             const uint64_t started=sceKernelGetProcessTimeWide();
+#endif
             interpreter.loadUCodeGBI(task->t.ucode,task->t.ucode_data,true);
             uint32_t address = uint32_t(task->t.data_ptr) & 0xffffff;
             interpreter.processDisplayLists(address,reinterpret_cast<RT64::DisplayList *>(state->fromRDRAM(address)));
+#if DK64_VITA_DIAGNOSTICS
             ++tasks;
             task_time_us+=sceKernelGetProcessTimeWide()-started;
             if(tasks==1 || tasks%120==0) vita_log("DK64 graphics tasks completed: %llu, average processing %.2f ms",
                 static_cast<unsigned long long>(tasks),task_time_us/(tasks==1?1000.0:120000.0));
             if(tasks%120==0) task_time_us=0;
+#endif
         } catch(const std::exception &e) {
             vita_log("DK64 graphics task %llu: %s",static_cast<unsigned long long>(tasks),e.what());
             ultramodern::quit();
@@ -99,9 +107,13 @@ public:
     }
     void update_screen() override {
         const auto *vi = ultramodern::renderer::get_vi_regs();
+#if DK64_VITA_DIAGNOSTICS
         if(tasks && vi_updates++ < 5) vita_log("VI origin 0x%08x, color image 0x%08x",vi->VI_ORIGIN_REG,state->rdp->parameters.colorAddress);
+#endif
         sink->present(vita_video_interface(*vi));
+#if DK64_VITA_DIAGNOSTICS
         if(tasks && (vi_updates<=5 || vi_updates%60==0)) vita_log("VI presentation returned, update %u",vi_updates);
+#endif
     }
     void shutdown() override { state.reset(); sink.reset(); }
     uint32_t get_display_framerate() const override { return 60; }

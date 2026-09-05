@@ -8,8 +8,10 @@
 
 extern "C" void yield_self(uint8_t *rdram);
 extern "C" void dk64_vita_frame_wait(uint8_t *rdram) {
+#if DK64_VITA_DIAGNOSTICS
     static bool logged=false;
     if(!logged) { vita_log("DK64 cooperative frame wait reached"); logged=true; }
+#endif
     yield_self(rdram);
 }
 
