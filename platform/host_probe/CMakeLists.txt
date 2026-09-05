@@ -38,12 +38,35 @@ target_include_directories(ultramodern PUBLIC "${repo}/lib/N64ModernRuntime/N64R
 target_compile_definitions(ultramodern PRIVATE RECOMP_FAIR_GFX_QUEUE)
 file(GLOB game_c "${generated}/*.c")
 file(GLOB game_cpp "${generated}/*.cpp")
+# Keep focused regressions attached to the real recompiler output even if its
+# generated source grouping changes. Only the selected routine enters the test.
+function(add_generated_check_function target symbol)
+    foreach(source IN LISTS game_c)
+        file(STRINGS "${source}" declaration REGEX "^RECOMP_FUNC void ${symbol}\\(" LIMIT_COUNT 1)
+        if(declaration)
+            file(READ "${source}" contents)
+            string(FIND "${contents}" "RECOMP_FUNC void ${symbol}(" start)
+            string(SUBSTRING "${contents}" ${start} -1 body)
+            string(FIND "${body}" "\nRECOMP_FUNC " next)
+            if(next GREATER_EQUAL 0)
+                string(SUBSTRING "${body}" 0 ${next} body)
+            endif()
+            set(output "${CMAKE_CURRENT_BINARY_DIR}/generated_checks/${symbol}.c")
+            file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated_checks")
+            file(CONFIGURE OUTPUT "${output}" CONTENT "#include \"recomp.h\"\n#include \"funcs.h\"\n${body}" @ONLY)
+            target_sources(${target} PRIVATE "${output}")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}")
+            return()
+        endif()
+    endforeach()
+    message(FATAL_ERROR "Generated regression function is missing: ${symbol}")
+endfunction()
 add_library(probe_game STATIC ${game_c} ${game_cpp})
 target_compile_definitions(probe_game PRIVATE RECOMP_TRACK_MEMORY_WRITES)
 target_include_directories(probe_game PRIVATE "${repo}/include" "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 target_compile_options(probe_game PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
 add_executable(dk64_runtime_probe main.cpp
-    ../vita/game_support.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
+    ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
     "${repo}/src/game/rom_decompression.cpp" "${repo}/rsp/n_aspMain.cpp")
 target_include_directories(dk64_runtime_probe PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/thirdparty/sse2neon")
@@ -52,6 +75,23 @@ target_link_options(dk64_runtime_probe PRIVATE -Wl,--gc-sections -Wl,--wrap=osPi
 add_executable(dk64_timing_checks ../vita/timing.cpp ../vita/test_timing.cpp)
 target_include_directories(dk64_timing_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_timing_checks COMMAND dk64_timing_checks)
+add_executable(dk64_gameplay_fix_checks ../vita/gameplay_fixes.cpp ../vita/test_gameplay_fixes.cpp)
+target_include_directories(dk64_gameplay_fix_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_gameplay_fix_checks COMMAND dk64_gameplay_fix_checks)
+# Exercise the actual generated routine, including its TOML instruction patch.
+add_executable(dk64_deferred_free_checks ../vita/test_deferred_free.cpp)
+add_generated_check_function(dk64_deferred_free_checks func_global_asm_80611730)
+target_include_directories(dk64_deferred_free_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+target_compile_options(dk64_deferred_free_checks PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
+target_link_options(dk64_deferred_free_checks PRIVATE -Wl,--gc-sections)
+add_test(NAME dk64_deferred_free_checks COMMAND dk64_deferred_free_checks)
+add_executable(dk64_photo_capture_checks ../vita/test_photo_capture.cpp)
+add_generated_check_function(dk64_photo_capture_checks func_global_asm_806FFF88)
+add_generated_check_function(dk64_photo_capture_checks func_global_asm_806FFEAC)
+target_include_directories(dk64_photo_capture_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_photo_capture_checks COMMAND dk64_photo_capture_checks)
 add_executable(dk64_readback_checks ../vita/framebuffer.cpp ../vita/test_framebuffer.cpp)
 target_include_directories(dk64_readback_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include"
     "${repo}/lib/N64ModernRuntime/librecomp/include" "${repo}/lib/N64ModernRuntime/ultramodern/include"

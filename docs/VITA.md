@@ -170,6 +170,32 @@ load. The host probe now reports audio delivery and requires at least 120 audio
 buffers as well as 120 graphics tasks, preventing startup-only audio from being
 mistaken for a successful integration run.
 
+The [upstream patch audit](VITA_UPSTREAM_PATCH_AUDIT.md) accounts for all 162
+compiled upstream replacements and the additional disabled source definition.
+The MIPS objects, linked ELF and strict-recompiler registration table agree on
+that inventory. It is an ongoing semantic audit, not a claim that every desktop
+replacement is active or appropriate on Vita; unresolved rows remain explicit.
+`tools/audit_vita_patches.py` checks inventory/source drift and the generated
+report, and can fail if unresolved rows remain.
+
+Native gameplay hooks now restore the five Helm temporary completion flags for
+an eligible existing save and remove lingering cutscene controllers before a new
+one is spawned. Cleanup handles both deferred deletion and immediate actor-list
+compaction. A narrowly scoped instruction patch removes the deferred-free
+routine's uncached corruption check while retaining its frees. Fairy-photo
+capture synchronizes the selected framebuffer before the original CPU tile
+loop, keeping the original allocation and texture-only fallback. Rabbit speed
+and Krazy Kong Klamour durations also carry the upstream lag adjustments; Klamour
+retains its original byte-sized difficulty value and expands it at the 16-bit
+timer consumer to avoid overwriting adjacent overlay data.
+
+The eight host checks include caller-register/stack preservation, save
+eligibility, actor selection/compaction, actual generated deferred-free and photo
+capture routines, and minigame timing boundaries. The removed-check and photo
+tests failed before their hooks were added. Photo testing isolates the game's
+color conversion. Full affected-save, repeated Owl Race, fairy-photo and
+minigame playthroughs remain required; these focused checks do not replace them.
+
 Earlier POSIX-semaphore runs intermittently reported:
 
 ```

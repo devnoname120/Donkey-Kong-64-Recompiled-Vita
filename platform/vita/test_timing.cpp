@@ -4,6 +4,9 @@
 #include <stdexcept>
 extern "C" void dk64_vita_calculate_lag(uint8_t *);
 extern "C" int32_t dk64_vita_frame_delta(uint8_t *);
+extern "C" double dk64_vita_scale_rabbit_speed(uint8_t *,double);
+extern "C" int32_t dk64_vita_klamour_round_duration(int32_t);
+extern "C" int32_t dk64_vita_klamour_tick(uint8_t *,int32_t);
 static unsigned waits=0;
 extern "C" void dk64_vita_frame_wait(uint8_t *rdram) { ++waits; ++MEM_W(0,0xffffffff80767cc4ULL); }
 static void check(bool value,const char *message) { if(!value) throw std::runtime_error(message); }
@@ -47,7 +50,23 @@ int main() {
         MEM_B(0,0xffffffff80755318ULL)=3; MEM_W(0,0xffffffff8076a0a8ULL)=7;
         dk64_vita_calculate_lag(rdram);
         check(MEM_W(0,0xffffffff80744478ULL)==3 && waits==2,"DKTV fixed lag");
-        std::puts("DK64 timing: frame intervals, zero-lag guard, cooperative wait and DKTV pacing passed");
+        MEM_W(0,0xffffffff80744478ULL)=2;
+        check(int(dk64_vita_scale_rabbit_speed(rdram,70.0))==66,"rabbit speed at two-frame lag");
+        MEM_W(0,0xffffffff80744478ULL)=3;
+        check(int(dk64_vita_scale_rabbit_speed(rdram,70.0))==100,"rabbit speed at three-frame lag");
+        MEM_W(0,0xffffffff80744478ULL)=6;
+        check(int(dk64_vita_scale_rabbit_speed(rdram,70.0))==200,"rabbit speed at six-frame lag");
+        MEM_W(0,0xffffffff80744478ULL)=2;
+        check(int(dk64_vita_scale_rabbit_speed(rdram,22.5))==21,"rabbit bonus speed must be scaled before integer truncation");
+        check(dk64_vita_klamour_round_duration(48)==129,"easy/normal Klamour duration overflowed a signed byte");
+        check(dk64_vita_klamour_round_duration(30)==81,"hard/insane Klamour duration");
+        check(dk64_vita_klamour_round_duration(50)==50,"default Klamour duration must remain unscaled");
+        check(dk64_vita_klamour_tick(rdram,162)==160,"Klamour initial timer decrement");
+        check(dk64_vita_klamour_tick(rdram,-79)==-81,"Klamour reset boundary must not trigger early");
+        check(dk64_vita_klamour_tick(rdram,-80)==-82,"Klamour timer must cross the negative reset boundary");
+        MEM_W(0,0xffffffff80744478ULL)=3;
+        check(dk64_vita_klamour_tick(rdram,1)==-2,"Klamour signed timer crossing");
+        std::puts("DK64 timing: frame intervals, waits, DKTV, rabbit speed and Klamour durations passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }

@@ -16,6 +16,53 @@ function_sizes = [
 [patches]
 ignored = ["D_global_asm_80611F0C", "D_global_asm_8071FA80", "D_global_asm_8061ACA0"]
 
+# Carry the gameplay fixes embedded in upstream's desktop patch replacements.
+# Here v0 is the file-status query result, after loading the selected save.
+[[patches.hook]]
+func = "func_global_asm_807144B8"
+before_vram = 0x80714518
+text = "{ extern void dk64_vita_restore_helm_medals(uint8_t*, recomp_context*, uint32_t); dk64_vita_restore_helm_medals(rdram, ctx, (uint32_t)ctx->r2); }"
+[[patches.hook]]
+func = "playCutscene"
+before_vram = 0x8061CCCC
+text = "{ extern void dk64_vita_remove_cutscene_controllers(uint8_t*, recomp_context*); dk64_vita_remove_cutscene_controllers(rdram, ctx); }"
+
+# Upstream removes the uncached corruption check inside the deferred-free
+# routine, not the routine itself. Supply the expected comparison value in t7
+# (nor t7,s0,zero), preserving the subsequent countdown, compaction and frees.
+[[patches.instruction]]
+func = "func_global_asm_80611730"
+vram = 0x80611774
+value = 0x02007827
+
+# patches_balancing.c scales the rabbit's speed for the current lag. f10 holds
+# the original double product here; keep the following trunc.w.d/mfc1 argument
+# conversion, rather than scaling an already truncated integer.
+[[patches.hook]]
+func = "func_global_asm_806BE8BC"
+before_vram = 0x806BEBD0
+text = "{ extern double dk64_vita_scale_rabbit_speed(uint8_t*, double); ctx->f10.d = dk64_vita_scale_rabbit_speed(rdram, ctx->f10.d); }"
+
+# Krazy Kong Klamour uses upstream's 2.7x timing and lag-based decrement.
+# Preserve the original compact difficulty byte (30/48) and expand its only
+# timer consumer to 81/129, avoiding a write into adjacent overlay data.
+[[patches.instruction]]
+func = "func_bonus_80029364"
+vram = 0x80029490
+value = 0x240C00A2 # addiu t4,zero,162 (initial game timer)
+[[patches.hook]]
+func = "func_bonus_80029364"
+before_vram = 0x800295DC
+text = "{ extern int32_t dk64_vita_klamour_tick(uint8_t*, int32_t); ctx->r13 = (int32_t)dk64_vita_klamour_tick(rdram, (int32_t)ctx->r12); }"
+[[patches.instruction]]
+func = "func_bonus_80029364"
+vram = 0x800297CC
+value = 0x2941FFAF # slti at,t2,-81 (reset only below this boundary)
+[[patches.hook]]
+func = "func_bonus_80029364"
+before_vram = 0x800297DC
+text = "{ extern int32_t dk64_vita_klamour_round_duration(int32_t); ctx->r11 = (int32_t)dk64_vita_klamour_round_duration((int32_t)ctx->r11); }"
+
 # The original audio loop reads AI_LEN at 0xA4500004 directly. It is a hardware
 # register, not RDRAM; use the runtime's queued-audio query as the desktop patch
 # does. v0 is reloaded at the following instruction, so this preserves its use.
@@ -33,6 +80,14 @@ value = 0x00000000
 [[patches.hook]]
 func = "func_global_asm_8070A848"
 text = "{ extern void dk64_vita_sync_framebuffer(uint8_t*, uint32_t, uint32_t, uint32_t); dk64_vita_sync_framebuffer(rdram, ctx->r5, MEM_HU(0, 0xffffffff80744490ULL), MEM_HU(0, 0xffffffff80744494ULL)); }"
+
+# Fairy photos read pixels directly instead of using the copy routine above.
+# t0 holds the selected framebuffer here; the texture-only fallback has already
+# returned, and the original photo allocation and color conversion are retained.
+[[patches.hook]]
+func = "func_global_asm_806FFF88"
+before_vram = 0x806FFFF8
+text = "{ extern void dk64_vita_sync_framebuffer(uint8_t*, uint32_t, uint32_t, uint32_t); dk64_vita_sync_framebuffer(rdram, (uint32_t)ctx->r8, MEM_HU(0, 0xffffffff80744490ULL), MEM_HU(0, 0xffffffff80744494ULL)); }"
 
 [[patches.hook]]
 func = "func_dk64_boot_800005A8"

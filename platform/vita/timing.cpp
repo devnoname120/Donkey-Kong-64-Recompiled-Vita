@@ -5,6 +5,20 @@
 #include <cstdint>
 
 extern "C" void dk64_vita_frame_wait(uint8_t *rdram);
+extern "C" double dk64_vita_scale_rabbit_speed(uint8_t *rdram,double speed) {
+    // patches_balancing.c compensates for the rabbit race's original 2.1 lag.
+    // Apply this before the original double-to-integer argument conversion.
+    return speed*(float(MEM_W(0,0xffffffff80744478ULL))/2.1f);
+}
+extern "C" int32_t dk64_vita_klamour_round_duration(int32_t base) {
+    // Keep the original byte-sized difficulty value in ROM data and expand it
+    // when the game writes its 16-bit timer. The upstream 2.7x values do not fit
+    // in a signed byte. Its unchanged default duration remains 50.
+    return base==48?129:base==30?81:base;
+}
+extern "C" int32_t dk64_vita_klamour_tick(uint8_t *rdram,int32_t timer) {
+    return int32_t(uint32_t(timer)-uint32_t(MEM_W(0,0xffffffff80744478ULL)));
+}
 namespace {
     constexpr gpr lag=0xffffffff80744478ULL,render_mode=0xffffffff807444ecULL;
     constexpr gpr map_address=0xffffffff8076a0a8ULL,object_timer=0xffffffff8076a064ULL;
