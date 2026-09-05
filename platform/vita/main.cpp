@@ -6,6 +6,7 @@
 #include <psp2/io/fcntl.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
+#include <vitaGL.h>
 #include <cstdio>
 #include <mutex>
 #include <algorithm>
@@ -156,6 +157,10 @@ int main() {
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
 #endif
     try {
+        // Keep compiled shaders beside this game's data, with a namespace for
+        // the pinned vitaGL/vitaShaRK pair and semantic binding mode. Update it
+        // when changing those dependencies or the shader compiler options.
+        vglSetShaderCachePath((std::string(data_directory)+"/shaders-cd3791e-df24065-pair").c_str());
         // Match Ghostship's Vita clock requests without lowering a higher
         // frequency already selected by the device's performance settings.
         if(scePowerGetArmClockFrequency()<444) scePowerSetArmClockFrequency(444);

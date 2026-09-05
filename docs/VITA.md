@@ -237,6 +237,19 @@ faults while continuing to submit graphics tasks. This is an unresolved native
 emulator limitation, not a clean runtime pass; the evidence does not establish
 the underlying cause. No game input was injected and save hashes stayed intact.
 
+Follow-up renderer measurements found zero GPU readbacks during the measured
+intro pause. Three alias copies and a handful of CPU memory merges accounted
+for about one second, while shader creation stalled for much longer. The build
+now enables vitaGL's persistent shader cache in the game's data directory.
+For 29 matched shader sources, the instrumented Vita3K/Vulkan compile/load path
+took 22.805 seconds with an empty cache and 0.008565 seconds on the warm run.
+Cold, warm and mixed cached/uncached runs rendered the DK Rap; removing one
+fragment entry produced exactly one cache miss and regenerated identical bytes.
+The temporary renderer counters and timers are not part of the release source.
+These measurements concern shader creation, not average game FPS. First-use
+compilation, ongoing draw cost, audio underruns and Vita3K memory-protection
+warnings remain separate issues.
+
 Earlier POSIX-semaphore runs intermittently reported:
 
 ```
@@ -410,7 +423,13 @@ and exits on Circle. The portable tests can be built directly from `lib/rt64` wi
 The container builds vitaShaRK at the verified latest upstream commit
 `df24065e65098b2d1ac533760109ad4367573f28` and then vitaGL at
 `cd3791e29ff7f1c0ab349f12c7231f4871ce6a75`, always with `NO_SPLASHSCREEN=1`
-and `STORE_DEPTH_STENCIL=1`. Rebuild the Docker image after updating these build
+and `STORE_DEPTH_STENCIL=1`, with `HAVE_SHADER_CACHE=1` for persistent shader
+binaries. The game selects
+`ux0:data/dk64recompiled/shaders-cd3791e-df24065-pair/`; the scripted probe uses
+its own data directory. vitaGL creates the versioned vertex/fragment
+subdirectories. Bump this cache namespace in `platform/vita/main.cpp` when
+changing the pinned libraries, compiler options or semantic binding mode.
+Rebuild the Docker image after updating these build
 options. When reusing a build directory, remove its generated `DK64Recompiled`
 and `rt64_fast_smoke` executables inside `<build-directory>/platform/vita/`
 before building again to force linking against
