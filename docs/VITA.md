@@ -114,6 +114,20 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   Overlapping GPU aliases and format-reinterpretation
   readback remain unresolved; native writers outside the notified paths must
   supply write notifications as well.
+- Color images and depth surfaces now have independent lifetimes. Equal-size
+  color buffers that use the same depth address share its depth values, including
+  across presentation and color-allocation replacement. Changing depth addresses
+  preserves color and previously written depth. Host regressions cover switches,
+  partial clears, and CPU color updates. The Vita3K/Vulkan diagnostic displays
+  red/blue above magenta/yellow as expected. This requires vitaGL built with
+  `STORE_DEPTH_STENCIL=1`; the previous build discarded depth between scenes.
+  Explicit rectangle draws implement far-depth clears because the tested
+  depth-only `glClear` path did not perform the partial clear correctly.
+  All five host integration checks pass; a 60-second host intro run with the
+  updated renderer completed 1,683 graphics tasks without simulated input.
+  The rebuilt Vita game also passed 2,280 graphics tasks through the intro in
+  Vita3K/Vulkan with the new depth storage enabled.
+  Different-size depth views and general color/depth aliasing still need work.
 
 ## Runtime validation
 
@@ -289,7 +303,13 @@ and exits on Circle. The portable tests can be built directly from `lib/rt64` wi
 
 The container builds vitaShaRK at the verified latest upstream commit
 `df24065e65098b2d1ac533760109ad4367573f28` and then vitaGL at
-`cd3791e29ff7f1c0ab349f12c7231f4871ce6a75`, always with `NO_SPLASHSCREEN=1`.
+`cd3791e29ff7f1c0ab349f12c7231f4871ce6a75`, always with `NO_SPLASHSCREEN=1`
+and `STORE_DEPTH_STENCIL=1`. Rebuild the Docker image after updating these build
+options. When reusing a build directory, remove its generated `DK64Recompiled`
+and `rt64_fast_smoke` executables inside `<build-directory>/platform/vita/`
+before building again to force linking against
+the rebuilt SDK libraries; CMake does not track changes to libraries passed by
+name with `-l`.
 The GLSL translator requires vitaShaRK's normal compiler extensions (including
 `bit_cast` helpers). Supply the decrypted shader compiler at
 `ur0:/data/libshacccg.suprx` inside Vita3K's configured filesystem root. Select
@@ -349,7 +369,8 @@ docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build-quiet 
 The package is `build/vita-hardware/platform/vita/DK64Recompiled.vpk`. It uses
 normal controls and saves, removes the frontend log files, diagnostic counters,
 audio peak scans and debug sections, and rejects configurations that enable
-scripted inputs or instrumentation. The image retains `NO_SPLASHSCREEN=1` and the
+scripted inputs or instrumentation. The image retains `NO_SPLASHSCREEN=1`,
+`STORE_DEPTH_STENCIL=1` and the
 pinned vitaShaRK revision. The ROM and `ur0:data/libshacccg.suprx` shader compiler
 must be supplied separately on the Vita. Removing diagnostics does not change the
 port's experimental compatibility status.

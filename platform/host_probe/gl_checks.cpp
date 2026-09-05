@@ -108,6 +108,62 @@ static void checkReadback(ProbeEGL &platform) {
             throw std::runtime_error("RGBA32 readback or color-format change is wrong");
     }
 }
+static void checkDepthImageSharing(ProbeEGL &platform) {
+    batching=true;
+    std::vector<uint32_t> memory(0x4000/4);
+    auto sink=platform.createSink();
+    sink->setRDRAM(reinterpret_cast<uint8_t *>(memory.data()),memory.size()*4);
+    constexpr uint32_t a=0x1000,b=0x1800,z1=0x2000,z2=0x2800;
+    RT64::FastDraw draw;
+    draw.width=draw.height=8;
+    draw.scissor={0,0,32,32};
+    draw.combine={0x00ffffff,(15U<<24)|(7U<<21)|(7U<<18)|(4U<<6)|(7U<<3)|4U};
+    draw.otherMode.H=G_CYC_1CYCLE;
+    auto paint=[&](uint32_t color,uint32_t depth,float z,float left,float right,std::array<float,4> rgba,bool useDepth=true) {
+        draw.colorAddress=color; draw.depthAddress=depth;
+        draw.depthTest=draw.depthWrite=useDepth;
+        draw.otherMode.L=useDepth?Z_CMP|Z_UPD:0;
+        quad(draw,left,-1,right,1,rgba);
+        for(auto &v:draw.vertices) v.position[2]=z;
+        sink->draw(draw);
+    };
+    auto expect=[&](uint32_t address,uint16_t left,uint16_t right) {
+        std::vector<uint8_t> bytes;
+        if(!sink->readFramebuffer(address,128,bytes)) throw std::runtime_error("Depth sharing color image is missing");
+        for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
+            const unsigned pixel=(y*8+x)*2,value=x<4?left:right;
+            if(bytes[pixel]!=(value>>8) || bytes[pixel+1]!=(value&255))
+                throw std::runtime_error("Color/depth image switch lost color or depth contents at "+std::to_string(address));
+        }
+    };
+    paint(b,z1,0,-1,1,{1,1,0,1},false);
+    paint(a,z1,-0.5f,-1,1,{1,0,0,1});
+    sink->fullSync(); sink->present(a);
+    paint(a,z2,0.5f,0,1,{0,0,1,1});
+    expect(a,0xf801,0x003f); // Changing Z image must preserve the left half's red.
+    paint(a,z1,0,-1,1,{0,1,0,1});
+    expect(a,0xf801,0x003f); // Z1's nearer depth survives switching away/back.
+    paint(b,z1,0.5f,-1,1,{0,0,1,1});
+    expect(b,0xffc1,0xffc1); // B sees A's depth, so the farther blue is rejected.
+    RT64::FastDraw clear;
+    clear.colorAddress=clear.depthAddress=z1; clear.width=clear.height=8;
+    clear.clearDepth=clear.fill=true; clear.scissor={0,0,16,32};
+    quad(clear,-1,-1,0,1,{1,1,1,1}); sink->draw(clear);
+    paint(b,z1,0,-1,1,{1,0,1,1}); expect(b,0xf83f,0xffc1);
+    // Updating A's color attachment through a CPU write must not reset its Z1.
+    RT64::FastMemoryWrite write{a,2}; write.bytes[1]=0x3f;
+    reinterpret_cast<uint8_t *>(memory.data())[(a+1)^3]=0x3f;
+    sink->notifyMemoryWrites({write});
+    std::vector<uint8_t> before,after;
+    sink->readFramebuffer(a,128,before);
+    paint(a,z1,0.5f,-1,1,{0,0,1,1}); sink->readFramebuffer(a,128,after);
+    if(before!=after) throw std::runtime_error("CPU color update reset shared depth");
+    // Replacing a color allocation must detach it without destroying shared Z.
+    std::fill_n(reinterpret_cast<uint8_t *>(memory.data())+a,256,255);
+    draw.colorBytes=4; paint(a,z1,0.5f,-1,1,{0,0,1,1});
+    if(!sink->readFramebuffer(a,256,after) || after!=std::vector<uint8_t>(256,255))
+        throw std::runtime_error("Color format replacement destroyed shared depth");
+}
 static void checkFramebufferFeedback(ProbeEGL &platform) {
     batching=true;
     auto sink=platform.createSink();
@@ -243,10 +299,11 @@ int main() {
         }
         checkPresentation(*platform);
         checkReadback(*platform);
+        checkDepthImageSharing(*platform);
         checkFramebufferMemoryChanges(*platform);
         checkRecordedFramebufferWrites(*platform);
         checkFramebufferFeedback(*platform);
-        std::puts("GL checks: batching, translucency, textures, VI, RGBA16/32 readback, changed RAM bytes and immutable framebuffer feedback passed");
+        std::puts("GL checks: batching, translucency, textures, VI, RGBA16/32 readback, recorded writes, framebuffer feedback and shared depth passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }

@@ -11,5 +11,5 @@ RUN git clone https://github.com/Rinnegatamante/vitashark.git /tmp/vitashark \
     && make -C /tmp/vitashark -j8 install
 RUN git clone https://github.com/Rinnegatamante/vitaGL.git /tmp/vitagl \
     && git -C /tmp/vitagl checkout ${VITAGL_REV} \
-    && make -C /tmp/vitagl -j8 NO_SPLASHSCREEN=1 HAVE_PTHREAD=1 HAVE_GLSL_TEXTURE_SIZE=1 HAVE_SHARK_LOG=${VITAGL_SHARK_LOG} LOG_ERRORS=${VITAGL_LOG_ERRORS} install
+    && make -C /tmp/vitagl -j8 NO_SPLASHSCREEN=1 STORE_DEPTH_STENCIL=1 HAVE_PTHREAD=1 HAVE_GLSL_TEXTURE_SIZE=1 HAVE_SHARK_LOG=${VITAGL_SHARK_LOG} LOG_ERRORS=${VITAGL_LOG_ERRORS} install
 WORKDIR /project

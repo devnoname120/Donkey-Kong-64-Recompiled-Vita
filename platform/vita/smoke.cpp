@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <exception>
 #include <vector>
+#include <algorithm>
 #include <cstring>
 #include "memory_writes.h"
 #ifdef RECOMP_TRACK_MEMORY_WRITES
@@ -142,6 +143,39 @@ int main() {
         auto changedFeedback=state.rdp->decodeTexture(0);
         if(!changedFeedback->storage) throw std::runtime_error("Framebuffer merge diagnostic requires a GPU texture view");
         trace("Merged recorded CPU stores into GPU image; expected red above blue (0,24,255)");
+        RT64::FastDraw depthDraw;
+        depthDraw.width=depthDraw.height=8; depthDraw.scissor={0,0,32,32};
+        depthDraw.combine={0x00ffffff,(15U<<24)|(7U<<21)|(7U<<18)|(4U<<6)|(7U<<3)|4U};
+        depthDraw.otherMode.H=G_CYC_1CYCLE; depthDraw.vertices.resize(6);
+        auto depthQuad=[&](uint32_t color,uint32_t depth,float z,float left,float right,std::array<float,4> rgba,bool enabled=true) {
+            depthDraw.colorAddress=color; depthDraw.depthAddress=depth;
+            depthDraw.depthTest=depthDraw.depthWrite=enabled;
+            depthDraw.otherMode.L=enabled?Z_CMP|Z_UPD:0;
+            for(unsigned i=0;i<6;++i) {
+                auto &v=depthDraw.vertices[i]; const auto &p=quad[corners[i]];
+                v.position[0]=left+(right-left)*p[0]; v.position[1]=p[1]*2-1; v.position[2]=z;
+                std::copy(rgba.begin(),rgba.end(),v.color);
+            }
+            sink->draw(depthDraw);
+        };
+        constexpr uint32_t colorA=0x1a0000,colorB=0x1b0000,depthA=0x1c0000,depthB=0x1d0000;
+        depthQuad(colorB,depthA,0,-1,1,{1,1,0,1},false);
+        depthQuad(colorA,depthA,-0.5f,-1,1,{1,0,0,1});
+        sink->fullSync(); sink->present(colorA);
+        depthQuad(colorA,depthB,0.5f,0,1,{0,0,1,1});
+        depthQuad(colorA,depthA,0,-1,1,{0,1,0,1});
+        depthQuad(colorB,depthA,0.5f,-1,1,{0,0,1,1});
+        RT64::FastDraw depthClear=depthDraw;
+        depthClear.colorAddress=depthA; depthClear.clearDepth=depthClear.fill=true;
+        depthClear.scissor={0,0,16,32}; sink->draw(depthClear);
+        depthQuad(colorB,depthA,0,-1,1,{1,0,1,1});
+        RT64::FastMemoryWrite sameBlue{colorA,1U<<15}; sameBlue.bytes[15]=0x3f;
+        state.RDRAM[(colorA+15)^3]=0x3f;
+        sink->notifyMemoryWrites({sameBlue});
+        depthQuad(colorA,depthA,0.5f,-1,1,{0,0,1,1});
+        auto depthImageA=sink->snapshotFramebuffer(colorA,128),depthImageB=sink->snapshotFramebuffer(colorB,128);
+        if(!depthImageA || !depthImageB) throw std::runtime_error("Shared depth diagnostic is missing its color images");
+        trace("Shared depth test prepared: red/blue above magenta/yellow");
         for(unsigned frame=0;;++frame) {
             interpreter.processDisplayLists(0x100,reinterpret_cast<RT64::DisplayList *>(state.fromRDRAM(0x100)));
             RT64::FastDraw triangle;
@@ -181,20 +215,24 @@ int main() {
                 sink->draw(textured);
             }
             if(frame>=120) {
+              for(unsigned panel=0;panel<(frame>=360?2U:1U);++panel) {
                 RT64::FastDraw test;
                 test.colorAddress=0x100000; test.depthAddress=0x200000;
-                const auto &image=frame>=240?changedFeedback:feedback;
+                const auto &image=frame>=360?(panel?depthImageB->texture:depthImageA->texture):frame>=240?changedFeedback:feedback;
                 test.otherMode={0,G_CYC_COPY}; test.textures[0]=image;
                 test.tiles[0].cms=test.tiles[0].cmt=G_TX_CLAMP;
                 test.tiles[0].lrs=(image->width-1)*4; test.tiles[0].lrt=(image->height-1)*4; test.vertices.resize(6);
                 for(unsigned i=0;i<6;++i) {
                     const auto &p=quad[corners[i]]; auto &v=test.vertices[i];
-                    v.position[0]=0.05f+p[0]*0.85f; v.position[1]=-0.9f+p[1]*0.85f;
+                    v.position[0]=0.05f+p[0]*0.85f;
+                    v.position[1]=-0.9f+(frame>=360?((1-panel)+p[1])*0.425f:p[1]*0.85f);
                     v.uv[0]=p[0]*image->width; v.uv[1]=(1-p[1])*image->height;
                 }
                 sink->draw(test);
+              }
                 if(frame==120) trace("Framebuffer feedback panel: expected red above blue, no green");
                 if(frame==240) trace("Same-value CPU store panel: expected red above blue (0,24,255), no cyan");
+                if(frame==360) trace("Shared depth panel: expected red/blue above magenta/yellow");
             }
             sink->fullSync();
             if(frame==2) capture();
