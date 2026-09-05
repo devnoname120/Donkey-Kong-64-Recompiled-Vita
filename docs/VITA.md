@@ -157,6 +157,19 @@ values, preserving higher device settings. Vita3K reports the requested values
 after initialization; an emulator does not measure the physical performance
 benefit. The diagnostic clock report is absent when diagnostics are disabled.
 
+The upstream `timing_fixes.c` audio-wakeup race fix is also required on Vita.
+The original delayed timer allowed the audio thread to wait for a task that was
+never submitted while graphics continued. The Vita hook now sends message 5
+directly only when the audio queue is empty, matching the desktop patch. A
+30-second host GL run with a deliberate 33 ms presentation delay delivered only
+13 audio buffers before the fix and 202 with it. Native Vita3K traces stopped
+after one to three buffers before the fix; the updated run passed 1,080 audio
+task submissions. Audio buffers still run empty during expensive graphics work,
+so this fixes scheduler liveness without establishing smooth playback under
+load. The host probe now reports audio delivery and requires at least 120 audio
+buffers as well as 120 graphics tasks, preventing startup-only audio from being
+mistaken for a successful integration run.
+
 Earlier POSIX-semaphore runs intermittently reported:
 
 ```

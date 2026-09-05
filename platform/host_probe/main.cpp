@@ -24,6 +24,8 @@ extern "C" void recomp_entrypoint(uint8_t *,recomp_context *);
 extern gpr get_entrypoint_address();
 extern RspUcodeFunc n_aspMain;
 static std::atomic<unsigned> completed_tasks{0};
+static std::atomic<unsigned> audio_buffers{0};
+static std::atomic<uint64_t> audio_samples{0};
 static uint8_t *game_memory=nullptr;
 static auto start=std::chrono::steady_clock::now();
 static int run_seconds=45, present_ms=0;
@@ -207,16 +209,19 @@ int main(int argc,char **argv) {
         return true;
     };
     config.input_callbacks.get_connected_device_info=[](int controller) { using namespace ultramodern::input;return connected_device_info_t{controller==0?Device::Controller:Device::None,Pak::None}; };
-    config.audio_callbacks.queue_samples=[](int16_t *,size_t) {};
+    config.audio_callbacks.queue_samples=[](int16_t *,size_t count) { ++audio_buffers; audio_samples+=count; };
     config.audio_callbacks.get_frames_remaining=[]() -> size_t { return 0; };
     config.audio_callbacks.set_frequency=[](uint32_t frequency) { vita_log("Probe audio rate=%u",frequency); };
     config.error_handling_callbacks.message_box=[](const char *message) { vita_log("PROBE ERROR: %s",message); };
     config.gfx_callbacks.update_gfx=[](void *) {
         if(std::chrono::steady_clock::now()-start>=std::chrono::seconds(run_seconds)) {
             vita_log("PROBE elapsed=%d completed_tasks=%u",run_seconds,completed_tasks.load());
+            vita_log("PROBE audio_buffers=%u stereo_frames=%llu",audio_buffers.load(),static_cast<unsigned long long>(audio_samples.load()/2));
             // This bounded diagnostic terminates its whole process. It does not
             // claim to exercise the game's normal shutdown sequence.
-            std::_Exit(completed_tasks.load()>=120?0:3);
+            // A few startup buffers do not establish that the audio scheduler
+            // is still running once graphics work begins.
+            std::_Exit(completed_tasks.load()>=120 && audio_buffers.load()>=120?0:3);
         }
     };
     config.message_queue_control.requeue_timer=false;

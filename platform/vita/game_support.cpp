@@ -3,10 +3,17 @@
 #include "librecomp/game.hpp"
 #include "librecomp/addresses.hpp"
 #include "librecomp/overlays.hpp"
+#include "ultramodern/ultra64.h"
 #include <stdexcept>
 #include "log.h"
 
 extern "C" void yield_self(uint8_t *rdram);
+extern "C" void dk64_vita_notify_audio(uint8_t *rdram,uint32_t queue) {
+    // Match timing_fixes.c: delayed timer messages can race with audio task
+    // completion under load. Keep at most one pending audio wakeup instead.
+    const int32_t mq=static_cast<int32_t>(queue);
+    if(MEM_W(8,mq)==0) osSendMesg(rdram,mq,5,OS_MESG_NOBLOCK);
+}
 extern "C" void dk64_vita_frame_wait(uint8_t *rdram) {
 #if DK64_VITA_DIAGNOSTICS
     static bool logged=false;

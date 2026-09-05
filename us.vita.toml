@@ -92,6 +92,17 @@ func = "func_global_asm_8060F254"
 before_vram = 0x8060F3B0
 text = "{ extern int32_t dk64_vita_frame_delta(uint8_t*); ctx->r12 = ADD32(ctx->r11, dk64_vita_frame_delta(rdram)); }"
 
+# Match timing_fixes.c's audio wakeup race fix. At this call site t6 already
+# contains the client's message queue; the original timer call is replaced.
+[[patches.hook]]
+func = "func_global_asm_8060F254"
+before_vram = 0x8060F4F4
+text = "{ extern void dk64_vita_notify_audio(uint8_t*, uint32_t); dk64_vita_notify_audio(rdram, (uint32_t)ctx->r14); }"
+[[patches.instruction]]
+func = "func_global_asm_8060F254"
+vram = 0x8060F4F4
+value = 0x00000000
+
 # Match patches_main.c: the Nintendo logo also uses the normal 320x240 mode.
 # This changes only the value subsequently stored to the byte at 0x8074450C.
 [[patches.instruction]]
