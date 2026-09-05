@@ -406,11 +406,11 @@
       "source": "patches/patches_heap.c",
       "function": "func_global_asm_80699284",
       "compiled": true,
-      "purpose": "Heap storage and framebuffer allocation; Don't attempt to free this",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Fairy-photo actor lifetime with desktop static capture storage",
+      "disposition": "retained_original",
+      "reason": "Vita retains the original photo allocation and matching actor cleanup. Importing the desktop removal of both release paths would leak the heap-backed Vita photograph or its cached-image fallback.",
+      "evidence": "Compared the full replacement against reference pseudocode and the generated cleanup at 0x80699850/0x80699860, which calls the texture-cache release or deferred free. The generated capture fixture verifies original heap ownership and the actor-217 fallback; it does not execute the complete photo-actor lifecycle.",
+      "next_action": "Validate complete photograph creation, display and deletion in gameplay; keep the two release paths paired with their original producers."
     },
     {
       "source": "patches/patches_heap.c",
@@ -1176,11 +1176,11 @@
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_8070068C",
       "compiled": true,
-      "purpose": "Conditionally suppress the original viewport scissor",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_103AB0.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Preserve desktop HUD alignment when setting the sprite viewport",
+      "disposition": "retained_original",
+      "reason": "The added condition skips the original scissor when desktop sprite alignment is at least two. Vita retains the original sprite/scissor path and does not import the gEX alignment helpers.",
+      "evidence": "Full reference-C diff changes only the scissor guard. alignHUD/popHUD and setSpriteAlignment implement the paired desktop scissor/viewport state; no Vita-specific scissor correction is established by this replacement.",
+      "next_action": "Revisit with widescreen or extended HUD alignment; check native HUD clipping in the affected menus/minigames."
     },
     {
       "source": "patches/patches_ui.c",
@@ -1246,11 +1246,11 @@
       "source": "patches/patches_ui.c",
       "function": "func_bonus_8002CC08",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Align the Searchlight Seek header and counter for desktop HUD placement",
+      "disposition": "retained_original",
+      "reason": "Vita retains the original projected target markers and counter coordinates. The replacement adds paired HUD/sprite alignment calls; the reordered temporaries and actor-data union access do not alter their storage.",
+      "evidence": "Full reference-C comparison plus Actor union layouts, u32 object_timer declarations and the s16 displayImage coordinate signature. Marker frame arithmetic, render modes and control-state cases are retained. No Searchlight Seek playthrough has been performed.",
+      "next_action": "Validate the original 4:3 counter and projected markers during a Searchlight Seek round; port alignment only with the corresponding renderer feature."
     },
     {
       "source": "patches/patches_ui.c",
@@ -1436,11 +1436,11 @@
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_8068DBA4",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Right-align Number Game timer text in the desktop HUD",
+      "disposition": "retained_original",
+      "reason": "The original timer text rendering remains appropriate for the current 4:3 viewport. The upstream addition brackets the same printStyledText call with extended HUD alignment.",
+      "evidence": "Full reference-C diff preserves the 12-byte text buffer, decimal value, color/combine state and coordinates 0x370/0x50. The new alignHUD/popHUD calls emit gEX viewport/scissor commands; no timer arithmetic is changed.",
+      "next_action": "Validate timer visibility in the Number Game; this source comparison does not claim a native minigame test."
     },
     {
       "source": "patches/patches_ui.c",

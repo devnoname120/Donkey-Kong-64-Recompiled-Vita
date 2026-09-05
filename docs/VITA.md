@@ -229,6 +229,14 @@ host runs reached Training Grounds and completed about 1,990 graphics tasks and
 the observed queue-zero event was not established. These bounded runs are not
 proof of complete timer concurrency correctness or physical-Vita stability.
 
+The quiet Release package with the timer fix reaches the animated N64 logo in
+Vita3K/Vulkan, but later suffers severe slowdowns and emulator memory-protection
+faults. A comparison with the archived pre-timer quiet build reproduced the
+same seven fault addresses in the same order. The diagnostic build also reports
+faults while continuing to submit graphics tasks. This is an unresolved native
+emulator limitation, not a clean runtime pass; the evidence does not establish
+the underlying cause. No game input was injected and save hashes stayed intact.
+
 Earlier POSIX-semaphore runs intermittently reported:
 
 ```
