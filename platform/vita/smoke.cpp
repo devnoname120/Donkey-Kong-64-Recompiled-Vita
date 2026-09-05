@@ -12,6 +12,10 @@
 #include <exception>
 #include <vector>
 #include <cstring>
+#include "memory_writes.h"
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+#include "recomp.h"
+#endif
 
 int _newlib_heap_size_user = 128 * 1024 * 1024;
 unsigned int sceUserMainThreadStackSize = 2 * 1024 * 1024;
@@ -46,7 +50,11 @@ int main() {
         auto sink=RT64::createFastVitaGLSink(true,false);
         trace("vitaGL and shader compiler initialized");
         std::vector<uint32_t> rdram(2*1024*1024);
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+        recomp::initialize_memory_writes(reinterpret_cast<uint8_t *>(rdram.data()),rdram.size()*4);
+#endif
         RT64::State state(reinterpret_cast<uint8_t *>(rdram.data()),rdram.size()*4,*sink);
+        track_framebuffer_writes(*sink);
         RT64::GBI gbi;
         gbi.ucode=RT64::GBIUCode::F3DEX2;
         RT64::GBI_RDP::setup(&gbi,true); RT64::GBI_F3DEX2::setup(&gbi);
@@ -101,22 +109,39 @@ int main() {
         state.rdp->setTileSize(0,0,0,12,20);
         auto feedback=state.rdp->decodeTexture(0);
         if(!feedback->storage) throw std::runtime_error("Framebuffer feedback did not produce a GPU view");
-        sourceQuad(-1,1,{0,1,0,1});
-        trace("Framebuffer snapshot captured red/blue; source repainted green");
-        // Keep the high byte of the GPU's green (0x07c1) in the lower half,
-        // while changing only the low byte in RAM. The result is cyan (0x073f).
+        sourceQuad(-1,1,{0,1,1,1});
+        trace("Framebuffer snapshot captured red/blue; source repainted cyan");
+        // Store zero over RAM's existing zero high byte in the lower half.
+        // The GPU's cyan 0x07ff must become 0x00ff: RGB (0,24,255).
+        std::vector<RT64::FastMemoryWrite> sourceWrites(4);
+        for(unsigned i=0;i<4;++i) sourceWrites[i].address=source.colorAddress+i*32;
+        auto writeByte=[&](uint32_t at,uint8_t value) {
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+            do_sb(state.RDRAM,0,at,value);
+#else
+            state.RDRAM[at^3]=value;
+#endif
+            const unsigned offset=at-source.colorAddress;
+            auto &write=sourceWrites[offset/32];
+            write.mask|=1U<<(offset&31); write.bytes[offset&31]=value;
+        };
         for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
             const uint32_t at=source.colorAddress+(y*8+x)*2;
-            if(y<4) state.RDRAM[at^3]=0xf8;
-            state.RDRAM[(at+1)^3]=y<4?1:0x3f;
+            writeByte(at,y<4?0xf8:0);
+            if(y<4) writeByte(at+1,1);
         }
+#ifdef RECOMP_TRACK_MEMORY_WRITES
+        submit_framebuffer_writes(*sink);
+#else
+        sink->notifyMemoryWrites(sourceWrites);
+#endif
         state.rdp->setTile(7,G_IM_FMT_RGBA,G_IM_SIZ_16b,2,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
         state.rdp->loadTile(7,0,0,28,28);
         state.rdp->setTile(0,G_IM_FMT_RGBA,G_IM_SIZ_16b,2,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
         state.rdp->setTileSize(0,0,0,28,28);
         auto changedFeedback=state.rdp->decodeTexture(0);
         if(!changedFeedback->storage) throw std::runtime_error("Framebuffer merge diagnostic requires a GPU texture view");
-        trace("Merged changed RAM bytes into GPU image; expected red above cyan");
+        trace("Merged recorded CPU stores into GPU image; expected red above blue (0,24,255)");
         for(unsigned frame=0;;++frame) {
             interpreter.processDisplayLists(0x100,reinterpret_cast<RT64::DisplayList *>(state.fromRDRAM(0x100)));
             RT64::FastDraw triangle;
@@ -169,7 +194,7 @@ int main() {
                 }
                 sink->draw(test);
                 if(frame==120) trace("Framebuffer feedback panel: expected red above blue, no green");
-                if(frame==240) trace("Framebuffer memory merge panel: expected red above cyan");
+                if(frame==240) trace("Same-value CPU store panel: expected red above blue (0,24,255), no cyan");
             }
             sink->fullSync();
             if(frame==2) capture();

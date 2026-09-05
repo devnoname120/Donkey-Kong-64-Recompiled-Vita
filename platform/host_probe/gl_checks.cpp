@@ -1,6 +1,8 @@
 #include "egl.h"
 #include "hle/rt64_vi.h"
 #include "fast/rt64_fast_state.h"
+#include "../vita/memory_writes.h"
+#include "recomp.h"
 #include <GLES2/gl2.h>
 #include <array>
 #include <algorithm>
@@ -190,6 +192,38 @@ static void checkFramebufferMemoryChanges(ProbeEGL &platform) {
             throw std::runtime_error("New graphics task lost CPU changes or restored stale RAM over GPU output");
     }
 }
+static void checkRecordedFramebufferWrites(ProbeEGL &platform) {
+    batching=true;
+    for(unsigned bpp:{2U,4U}) {
+        std::vector<uint32_t> memory(2048,0xaaaaaaaa);
+        auto *rdram=reinterpret_cast<uint8_t *>(memory.data());
+        recomp::initialize_memory_writes(rdram,memory.size()*4);
+        auto sink=platform.createSink();
+        sink->setRDRAM(rdram,memory.size()*4); track_framebuffer_writes(*sink);
+        RT64::FastDraw draw;
+        draw.colorAddress=0x400; draw.width=draw.height=4; draw.colorBytes=bpp;
+        draw.fill=true; draw.fillColor={0,1,0,1};
+        quad(draw,-1,-1,1,1,{1,1,1,1}); sink->draw(draw); sink->flushDraws();
+        std::vector<uint8_t> before,output;
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,before)) throw std::runtime_error("Tracked framebuffer is missing");
+        auto old=sink->snapshotFramebuffer(draw.colorAddress,16*bpp);
+        if(bpp==2) do_sb(rdram,1,0xffffffffa0000400ULL,0xaa);
+        else do_sw(rdram,0,0xffffffff80000400ULL,0xaaaaaaaa);
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,output) || output!=before)
+            throw std::runtime_error("Same-value write negative control changed RAM unexpectedly");
+        submit_framebuffer_writes(*sink);
+        auto expected=before;
+        if(bpp==2) expected[1]=0xaa;
+        else std::fill_n(expected.begin(),4,0xaa);
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,output) || output!=expected)
+            throw std::runtime_error("Recorded same-value CPU store was lost by the GPU framebuffer");
+        if(!sink->readFramebufferSnapshot(*old,output) || output!=before)
+            throw std::runtime_error("CPU store changed a snapshot loaded before that store");
+        sink.reset();
+        if(__atomic_load_n(&recomp_watched_pages[0],__ATOMIC_RELAXED))
+            throw std::runtime_error("Destroyed framebuffer left guest pages watched");
+    }
+}
 int main() {
     try {
         auto platform=createProbeEGL(".");
@@ -210,6 +244,7 @@ int main() {
         checkPresentation(*platform);
         checkReadback(*platform);
         checkFramebufferMemoryChanges(*platform);
+        checkRecordedFramebufferWrites(*platform);
         checkFramebufferFeedback(*platform);
         std::puts("GL checks: batching, translucency, textures, VI, RGBA16/32 readback, changed RAM bytes and immutable framebuffer feedback passed");
         return 0;

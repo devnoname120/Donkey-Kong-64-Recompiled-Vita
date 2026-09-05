@@ -15,6 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_set>
+#include "../vita/memory_writes.h"
 #ifdef PROBE_GL
 #include "egl.h"
 #endif
@@ -74,6 +75,8 @@ public:
     void fullSync() override { if(forward) forward->fullSync(); }
     void flushDraws() override { if(forward) forward->flushDraws(); }
     void setRDRAM(const uint8_t *rdram,size_t size) override { if(forward) forward->setRDRAM(rdram,size); }
+    void setMemoryWriteTracking(std::function<void(uint32_t,uint32_t,bool)> watch) override { if(forward) forward->setMemoryWriteTracking(std::move(watch)); }
+    void notifyMemoryWrites(const std::vector<RT64::FastMemoryWrite> &writes) override { if(forward) forward->notifyMemoryWrites(writes); }
     std::shared_ptr<const RT64::FastFramebuffer> snapshotFramebuffer(uint32_t address,uint32_t size) override {
         return forward?forward->snapshotFramebuffer(address,size):nullptr;
     }
@@ -107,6 +110,7 @@ public:
             platform=createProbeEGL(probe_directory);
             sink.forward=platform->createSink();
             sink.forward->setRDRAM(rdram,recomp::mem_size);
+            track_framebuffer_writes(sink);
         }
 #endif
         interpreter.setup(&state);
@@ -118,6 +122,7 @@ public:
     void enable_instant_present() override {}
     bool defer_rsp_completion() const override { return true; }
     void send_dl(const OSTask *task) override {
+        submit_framebuffer_writes(sink);
         sink.startTask(completed_tasks.load()+1);
         interpreter.loadUCodeGBI(task->t.ucode,task->t.ucode_data,true);
         const uint32_t address=uint32_t(task->t.data_ptr)&0xffffff;
@@ -129,13 +134,15 @@ public:
         if(count<5 || count%120==0) vita_log("Probe tasks=%u draws=%llu triangles=%llu textured=%llu",count,
             static_cast<unsigned long long>(sink.draws),static_cast<unsigned long long>(sink.triangles),static_cast<unsigned long long>(sink.textured));
     }
-    void send_dummy_workload(uint32_t address) override { sink.present(address); }
+    void send_dummy_workload(uint32_t address) override { submit_framebuffer_writes(sink); sink.present(address); }
     std::vector<uint8_t> read_framebuffer(uint32_t address,uint32_t size) override {
+        submit_framebuffer_writes(sink);
         std::vector<uint8_t> bytes;
         sink.readFramebuffer(address,size,bytes);
         return bytes;
     }
     void update_screen() override {
+        submit_framebuffer_writes(sink);
         const auto *vi=ultramodern::renderer::get_vi_regs();
         static uint32_t last_width=0,last_h=0,last_control=0;
         if(completed_tasks.load() && (last_width!=vi->VI_WIDTH_REG || last_h!=vi->VI_H_START_REG || last_control!=vi->VI_STATUS_REG)) vita_log("VI task=%u width=%u control=%08x h=%08x v=%08x xscale=%08x yscale=%08x origin=%08x",completed_tasks.load(),

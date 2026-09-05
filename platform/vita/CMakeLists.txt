@@ -7,6 +7,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/lib/rt64 ${CMAKE_BINARY_DIR}/rt64)
 option(DK64_VITA_RUNTIME "Build the ARMv7 N64 runtime" ON)
 if(DK64_VITA_RUNTIME)
     set(RECOMP_ENABLE_MODS OFF CACHE BOOL "Dynamic code mods are unavailable on Vita" FORCE)
+    set(RECOMP_TRACK_MEMORY_WRITES ON CACHE BOOL "Track framebuffer CPU writes" FORCE)
     add_subdirectory(${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime ${CMAKE_BINARY_DIR}/runtime)
     foreach(runtime_target ultramodern librecomp)
         target_include_directories(${runtime_target} PUBLIC
@@ -27,12 +28,18 @@ if(DK64_VITA_GAME)
         OR NOT EXISTS "${CMAKE_SOURCE_DIR}/rsp/n_aspMain.cpp")
         message(FATAL_ERROR "Generate Vita sources with ./N64Recomp us.vita.toml and ./RSPRecomp n_aspMain.toml first. For the graphics diagnostic alone, set DK64_VITA_GAME=OFF.")
     endif()
+    file(STRINGS "${vita_recompiled_dir}/funcs.h" write_tracking_version
+        REGEX "^#define RECOMP_GENERATED_WRITE_TRACKING 1$")
+    if(NOT write_tracking_version)
+        message(FATAL_ERROR "Rebuild N64Recomp from the pinned submodule and regenerate us.vita.toml: the current generated sources do not record memory writes.")
+    endif()
     file(GLOB game_c CONFIGURE_DEPENDS "${vita_recompiled_dir}/*.c")
     file(GLOB game_cpp CONFIGURE_DEPENDS "${vita_recompiled_dir}/*.cpp")
     add_library(dk64_recompiled_vita STATIC ${game_c} ${game_cpp})
     target_include_directories(dk64_recompiled_vita PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include)
+    target_compile_definitions(dk64_recompiled_vita PRIVATE RECOMP_TRACK_MEMORY_WRITES)
     target_compile_options(dk64_recompiled_vita PRIVATE -O2 -mcpu=cortex-a9 -mfpu=neon
         -mfloat-abi=hard -fno-strict-aliasing -ffunction-sections -fdata-sections
         $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
@@ -86,6 +93,9 @@ endif()
 # This is deliberately a separate application from the game: it verifies the
 # graphics stack without claiming that the DK64 runtime has been ported.
 add_executable(rt64_fast_smoke smoke.cpp)
+if(DK64_VITA_RUNTIME)
+    target_link_libraries(rt64_fast_smoke PRIVATE librecomp)
+endif()
 target_compile_options(rt64_fast_smoke PRIVATE -fno-strict-aliasing)
 target_link_libraries(rt64_fast_smoke PRIVATE rt64
     "-Wl,--whole-archive" pthread "-Wl,--no-whole-archive"

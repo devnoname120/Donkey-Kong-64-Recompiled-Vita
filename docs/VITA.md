@@ -97,9 +97,23 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   the expected red/cyan result in Vita3K/Vulkan. All four host integration checks
   pass; a separate 60-second host GL intro run completed 1,727 graphics tasks
   without simulated game inputs and rendered the colored character intro.
-  These checks do not establish general framebuffer coherence: same-value CPU
-  stores cannot be inferred from RAM comparisons, overlapping GPU aliases remain
-  unresolved, and format-reinterpretation readback still has the Vita3K limitation.
+- The static recompiler's store helpers and native ROM/save/patch/RSP DMA writers
+  now record writes to watched framebuffer pages. The renderer consumes byte
+  masks at graphics boundaries, so same-value stores also replace GPU pixels.
+  Tests cover KSEG aliases, every unaligned store offset, bulk writes, watch
+  lifetime, and concurrent collection. All five host integration checks pass.
+  A Vita3K/Vulkan diagnostic using the runtime collector changes cyan RGBA16
+  pixels to RGB (0,24,255) by writing zero over a RAM byte already equal to zero;
+  the native screenshot measures (0,24,254), within JPEG rounding. A 60-second
+  host GL intro run with tracked generated stores completed 1,639 graphics tasks
+  without simulated game inputs. These are completion counts, not a controlled
+  performance comparison. The rebuilt Vita game also passed 6,000 graphics tasks
+  through the DK Rap intro in Vita3K/Vulkan, with no controller button transitions
+  and unchanged existing saves. One inspected scene showed 14 presentation FPS;
+  this is not a physical-Vita performance measurement.
+  Overlapping GPU aliases and format-reinterpretation
+  readback remain unresolved; native writers outside the notified paths must
+  supply write notifications as well.
 
 ## Runtime validation
 
@@ -287,6 +301,9 @@ After generating the decompressed US ROM and host tools as described in
 `BUILDING.md`, run:
 
 ```sh
+cmake -S lib/N64ModernRuntime/N64Recomp -B build/host-recompiler -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host-recompiler --target N64RecompCLI -j8
+cp build/host-recompiler/N64Recomp ./N64Recomp
 ./N64Recomp us.vita.toml
 ./RSPRecomp n_aspMain.toml
 docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build \

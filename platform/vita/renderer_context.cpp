@@ -7,6 +7,7 @@
 #include "log.h"
 #include "draw_trace.h"
 #include "vi.h"
+#include "memory_writes.h"
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
 #include <unordered_set>
 #include <psp2/io/fcntl.h>
@@ -41,6 +42,8 @@ public:
     void fullSync() override { backend->fullSync(); }
     void flushDraws() override { backend->flushDraws(); }
     void setRDRAM(const uint8_t *rdram,size_t size) override { backend->setRDRAM(rdram,size); }
+    void setMemoryWriteTracking(std::function<void(uint32_t,uint32_t,bool)> watch) override { backend->setMemoryWriteTracking(std::move(watch)); }
+    void notifyMemoryWrites(const std::vector<RT64::FastMemoryWrite> &writes) override { backend->notifyMemoryWrites(writes); }
     std::shared_ptr<const RT64::FastFramebuffer> snapshotFramebuffer(uint32_t address,uint32_t size) override {
         return backend->snapshotFramebuffer(address,size);
     }
@@ -74,6 +77,7 @@ public:
             sink=std::make_unique<TraceSink>(std::move(sink));
 #endif
             state = std::make_unique<RT64::State>(rdram,recomp::mem_size,*sink);
+            track_framebuffer_writes(*sink);
             interpreter.setup(state.get());
             setup_result = ultramodern::renderer::SetupResult::Success;
             vita_log("DK64 Vita renderer initialized");
@@ -84,6 +88,7 @@ public:
     void enable_instant_present() override {}
     bool defer_rsp_completion() const override { return true; }
     void send_dl(const OSTask *task) override {
+        submit_framebuffer_writes(*sink);
 #if DK64_VITA_DIAGNOSTICS
         if(tasks<3) vita_log("Entering graphics task %llu",static_cast<unsigned long long>(tasks+1));
 #endif
@@ -109,13 +114,15 @@ public:
             ultramodern::quit();
         }
     }
-    void send_dummy_workload(uint32_t address) override { sink->present(address & 0xffffff); }
+    void send_dummy_workload(uint32_t address) override { submit_framebuffer_writes(*sink); sink->present(address & 0xffffff); }
     std::vector<uint8_t> read_framebuffer(uint32_t address,uint32_t size) override {
+        submit_framebuffer_writes(*sink);
         std::vector<uint8_t> bytes;
         sink->readFramebuffer(address,size,bytes);
         return bytes;
     }
     void update_screen() override {
+        submit_framebuffer_writes(*sink);
         const auto *vi = ultramodern::renderer::get_vi_regs();
 #if DK64_VITA_DIAGNOSTICS
         if(tasks && vi_updates++ < 5) vita_log("VI origin 0x%08x, color image 0x%08x",vi->VI_ORIGIN_REG,state->rdp->parameters.colorAddress);
