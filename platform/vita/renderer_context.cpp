@@ -39,6 +39,9 @@ public:
     void fullSync() override { backend->fullSync(); }
     void present(uint32_t address) override { backend->present(address); }
     void present(const RT64::VI &vi) override { backend->present(vi); }
+    bool readFramebuffer(uint32_t address,uint32_t size,std::vector<uint8_t> &bytes) override {
+        return backend->readFramebuffer(address,size,bytes);
+    }
 };
 #endif
 class VitaRendererContext final : public ultramodern::renderer::RendererContext {
@@ -67,6 +70,7 @@ public:
     bool valid() override { return setup_result == ultramodern::renderer::SetupResult::Success; }
     bool update_config(const ultramodern::renderer::GraphicsConfig&,const ultramodern::renderer::GraphicsConfig&) override { return true; }
     void enable_instant_present() override {}
+    bool defer_rsp_completion() const override { return true; }
     void send_dl(const OSTask *task) override {
         if(tasks<3) vita_log("Entering graphics task %llu",static_cast<unsigned long long>(tasks+1));
         try {
@@ -88,6 +92,11 @@ public:
         }
     }
     void send_dummy_workload(uint32_t address) override { sink->present(address & 0xffffff); }
+    std::vector<uint8_t> read_framebuffer(uint32_t address,uint32_t size) override {
+        std::vector<uint8_t> bytes;
+        sink->readFramebuffer(address,size,bytes);
+        return bytes;
+    }
     void update_screen() override {
         const auto *vi = ultramodern::renderer::get_vi_regs();
         if(tasks && vi_updates++ < 5) vita_log("VI origin 0x%08x, color image 0x%08x",vi->VI_ORIGIN_REG,state->rdp->parameters.colorAddress);

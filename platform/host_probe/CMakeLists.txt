@@ -37,7 +37,7 @@ add_library(probe_game STATIC ${game_c} ${game_cpp})
 target_include_directories(probe_game PRIVATE "${repo}/include" "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 target_compile_options(probe_game PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
 add_executable(dk64_runtime_probe main.cpp
-    ../vita/game_support.cpp ../vita/register_overlays.cpp ../vita/timing.cpp
+    ../vita/game_support.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
     "${repo}/src/game/rom_decompression.cpp" "${repo}/rsp/n_aspMain.cpp")
 target_include_directories(dk64_runtime_probe PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/thirdparty/sse2neon")
@@ -46,6 +46,16 @@ target_link_options(dk64_runtime_probe PRIVATE -Wl,--gc-sections -Wl,--wrap=osPi
 add_executable(dk64_timing_checks ../vita/timing.cpp ../vita/test_timing.cpp)
 target_include_directories(dk64_timing_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_timing_checks COMMAND dk64_timing_checks)
+add_executable(dk64_readback_checks ../vita/framebuffer.cpp ../vita/test_framebuffer.cpp)
+target_include_directories(dk64_readback_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include"
+    "${repo}/lib/N64ModernRuntime/librecomp/include" "${repo}/lib/N64ModernRuntime/ultramodern/include"
+    "${repo}/lib/N64ModernRuntime/thirdparty")
+add_test(NAME dk64_readback_checks COMMAND dk64_readback_checks)
+add_executable(dk64_graphics_queue_checks ../vita/test_graphics_queue.cpp)
+target_include_directories(dk64_graphics_queue_checks PRIVATE "${repo}/lib/N64ModernRuntime/ultramodern/include"
+    "${repo}/lib/N64ModernRuntime/thirdparty/concurrentqueue")
+target_link_libraries(dk64_graphics_queue_checks PRIVATE pthread)
+add_test(NAME dk64_graphics_queue_checks COMMAND dk64_graphics_queue_checks)
 if(PROBE_GL)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)

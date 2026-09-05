@@ -1,7 +1,35 @@
 #include "ultramodern/graphics_queue.hpp"
 #include <iostream>
+#include <future>
+#include <thread>
+
+static std::pair<int,int> crossThreadOrder(bool ordered) {
+    moodycamel::BlockingConcurrentQueue<int> queue;
+    ultramodern::OrderedGraphicsProducer<decltype(queue)> producer(queue);
+    std::promise<void> graphics_ready,readback_ready,release;
+    auto wait=release.get_future().share();
+    // Keep both threads alive so the implicit-producer case cannot reuse the
+    // first thread's retired producer and accidentally appear globally ordered.
+    std::thread graphics([&] {
+        if(ordered) producer.enqueue(1); else queue.enqueue(1);
+        graphics_ready.set_value(); wait.wait();
+    });
+    graphics_ready.get_future().wait();
+    std::thread readback([&] {
+        if(ordered) producer.enqueue(2); else queue.enqueue(2);
+        readback_ready.set_value(); wait.wait();
+    });
+    readback_ready.get_future().wait();
+    std::pair<int,int> result{};
+    queue.try_dequeue(result.first); queue.try_dequeue(result.second);
+    release.set_value(); graphics.join(); readback.join();
+    return result;
+}
 
 int main() {
+    if(crossThreadOrder(false)!=std::pair<int,int>{2,1}) return 11;
+    if(crossThreadOrder(true)!=std::pair<int,int>{1,2}) return 12;
+    std::cout<<"Graphics queue: reproduced cross-thread readback overtaking; ordered producer preserved task/readback order\n";
     ultramodern::LatestPresentation<int> presentation;
     if(!presentation.publish(1)) return 7;
     for(int i=2;i<=10000;++i) if(presentation.publish(i)) return 8;

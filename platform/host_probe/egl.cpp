@@ -8,6 +8,7 @@
 
 extern unsigned probeCompletedTasks();
 extern bool probeBatchingEnabled();
+extern unsigned probePauseGeneration();
 namespace {
 class Context final : public ProbeEGL {
     EGLDisplay display=EGL_NO_DISPLAY;
@@ -15,20 +16,30 @@ class Context final : public ProbeEGL {
     EGLSurface surface=EGL_NO_SURFACE;
     std::string directory;
     unsigned capture_index=0;
-    void swap() {
-        constexpr unsigned wanted[]={1,2,3,10,30,60,120,240,480,720,960,1200,1800};
-        const unsigned task=probeCompletedTasks();
-        if(capture_index<std::size(wanted) && task>=wanted[capture_index]) {
+    unsigned observed_pause=0,captured_pause=0,pause_capture_task=0;
+    void capture(const char *name) {
             std::vector<uint8_t> rgba(960*544*4),rgb(960*544*3);
             glReadPixels(0,0,960,544,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());
             if(glGetError()!=GL_NO_ERROR) throw std::runtime_error("Host GL readback failed");
             for(unsigned y=0;y<544;++y) for(unsigned x=0;x<960;++x) for(unsigned c=0;c<3;++c)
                 rgb[(y*960+x)*3+c]=rgba[((543-y)*960+x)*4+c];
-            char name[40]; std::snprintf(name,sizeof(name),"frame-%06u.ppm",task);
             std::ofstream out(std::filesystem::path(directory)/name,std::ios::binary);
             out<<"P6\n960 544\n255\n"; out.write(reinterpret_cast<const char *>(rgb.data()),rgb.size());
             std::fprintf(stderr,"Host GL captured %s\n",name);
+    }
+    void swap() {
+        constexpr unsigned wanted[]={1,2,3,10,30,60,120,240,480,720,960,1200,1800};
+        const unsigned task=probeCompletedTasks();
+        if(capture_index<std::size(wanted) && task>=wanted[capture_index]) {
+            char name[40]; std::snprintf(name,sizeof(name),"frame-%06u.ppm",task);
+            capture(name);
             ++capture_index;
+        }
+        const unsigned pause=probePauseGeneration();
+        if(pause!=observed_pause) { observed_pause=pause; pause_capture_task=task+30; }
+        if(pause && pause!=captured_pause && task>=pause_capture_task) {
+            char name[40]; std::snprintf(name,sizeof(name),"pause-%u.ppm",pause);
+            capture(name); captured_pause=pause;
         }
         if(!eglSwapBuffers(display,surface)) throw std::runtime_error("Host EGL swap failed");
     }

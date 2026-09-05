@@ -82,8 +82,10 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   Arbitrary VI stride/scaling and framebuffer feedback remain separate work.
 - An explicit color-image readback API now passes host GLES tests for RGBA16/32
   packing, top-to-bottom row order, partial/unaligned ranges, format changes and
-  flushing pending batches. It is not yet connected to DK64's CPU framebuffer
-  consumers, and native Vita3K readback remains subject to the limitation below.
+  flushing pending batches. DK64's framebuffer-copy routine now synchronizes its
+  source through this API before executing the original CPU copy and morphing.
+  Host screenshots show the blurred pause background and successful resume;
+  native Vita3K readback remains subject to the limitation below.
 
 ## Runtime validation
 
@@ -169,6 +171,28 @@ while toggling each mode bit across cycle, texture, fog, and fill combinations.
 The identical vertex stage is also compiled once per renderer and shared by all
 combiner programs, avoiding repeated runtime compilation of that stage.
 
+CPU framebuffer requests share an ordered graphics-queue producer with display
+lists. A two-thread regression reproduces a readback overtaking an earlier task
+with implicit producers, then verifies the shared producer preserves their order.
+The CPU renderer also defers SP completion until `send_dl` finishes reading guest
+commands, vertices and matrices. This prevents the completion notification from
+allowing the game to reuse those inputs while decoding is still in progress.
+
+A non-sanitized host run exposed the original audio loop's direct `AI_LEN` read
+at `0x80601F0C` (`0xA4500004`). The Vita recompiler configuration now replaces it
+with `osAiGetLength_recomp`, as the desktop patch does. Reduced-memory 64-bit host
+runs reserve the rest of the 512 MiB physical-address range as inaccessible guard
+space: ASan does not automatically track the bounds of a raw mmap allocation,
+so the earlier 32 MiB mapping could let an invalid access land in neighboring
+mapped memory. The guarded ASan runtime subsequently completed 3,578 tasks in
+120 seconds, including pause/resume in the capture-only probe.
+
+The llvmpipe host run completed 5,282 graphics tasks in 180 seconds with rendered
+pause/resume captures. One earlier fast-host run faulted during map loading;
+that fault was not reproduced by the instrumented reruns or the later run with
+deferred SP completion. Its exact cause was not established, so longer stability
+testing remains necessary.
+
 `DK64_VITA_PROFILE_FUNCTIONS=ON` enables temporary function-stack samples and
 message-queue tracing in `progress.log`. The current release build disables this
 option. It must be disabled for performance measurements. `RT64_FAST_VALIDATE_UPLOADS`
@@ -180,23 +204,29 @@ details and decoded textures, without instrumenting all recompiled functions.
 `platform/host_probe` builds the same generated Vita game against the native Linux
 runtime, with the 32 MiB guest memory limit, KSEG1 aliases, and fair graphics queue.
 `PROBE_GL=ON` enables the same raster backend through GLES2 and offscreen EGL. The
-`dk64_runtime_probe ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure]`
+`dk64_runtime_probe ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture]`
 process deliberately exits at its time bound; it does not validate graceful
 shutdown or audio output. The optional `adventure` script supplies input through
 the runtime callback and logs maps, cutscenes, and player coordinates; it does
 not exercise Vita3K keyboard input. Its Dockerfile extends `dk64-vita-build` with Mesa. With ASan
 under this machine's x86 emulation, use `GALLIUM_DRIVER=softpipe`; llvmpipe's LLVM
 JIT failed during EGL context creation before renderer initialization.
+`PROBE_ASAN=OFF` permits llvmpipe for faster game-image checks on this host; retain
+the sanitizer checks separately. The final `capture` argument bypasses EGL even
+in a GL-enabled build, allowing the same binary to test the guarded guest runtime
+without the software rasterization cost. The `pause` script captures paused and
+resumed frames when GL is enabled.
 
 The optional `DK64_VITA_SCRIPTED_INPUT=ON` build produces
 `DK64AdventureProbe.vpk` (`DK64RT001`) using the same controller-callback script.
 It uses `ux0:data/dk64recompiled-probe/` for its ROM, saves and logs, so it cannot
 modify the regular port's saved game. It does not test physical input delivery.
 The regular `DK64Recompiled.vpk` is produced with this option **OFF** (the default).
+`DK64_VITA_SCRIPTED_PAUSE=ON` also exercises pause/resume in the native probe.
 
 ## Work remaining
 
-- Implement framebuffer feedback/readback integration and the remaining VI
+- Implement general framebuffer-to-texture feedback and the remaining VI
   stride/scaling behavior; validate depth/blender
   and texture corner cases against game output.
 - Expand DK64 validation beyond the opening story and Training Grounds, including
@@ -270,6 +300,10 @@ Known validation issue: Vita3K presents the diagnostic correctly, but vitaGL's
 direct CPU `glReadPixels` path returns black for its offscreen framebuffer. Use
 Vita3K's native screenshot capture when checking presentation. CPU framebuffer
 readback remains a separate compatibility requirement.
+The native game probe also returned zero colored pixels for all three 320x240
+readbacks while continuing through pause/resume and gameplay. This confirms the
+limitation affects game framebuffer copies as well as the small diagnostic; it
+does not establish correct pause backgrounds on Vita3K or physical Vita hardware.
 
 The installed macOS Vita3K run reports memory mapping as Disabled. The available
 local Vita3K source disables Vulkan memory mapping on Apple platforms and gates

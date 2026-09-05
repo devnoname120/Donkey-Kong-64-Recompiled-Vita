@@ -29,9 +29,12 @@ static int run_seconds=45, present_ms=0;
 static bool enable_batching=true;
 static bool adventure_input=false;
 static bool pause_input=false;
+static bool capture_only=false;
+static std::atomic<unsigned> pause_generation{0};
 static std::string probe_directory;
 unsigned probeCompletedTasks() { return completed_tasks.load(); }
 bool probeBatchingEnabled() { return enable_batching; }
+unsigned probePauseGeneration() { return pause_generation.load(); }
 
 void vita_log(const char *format,...) {
     va_list args; va_start(args,format); std::vfprintf(stderr,format,args); va_end(args);
@@ -77,6 +80,9 @@ public:
         if(forward) forward->present(vi);
         if(present_ms) std::this_thread::sleep_for(std::chrono::milliseconds(present_ms));
     }
+    bool readFramebuffer(uint32_t address,uint32_t size,std::vector<uint8_t> &bytes) override {
+        return forward && forward->readFramebuffer(address,size,bytes);
+    }
 };
 class Renderer final : public ultramodern::renderer::RendererContext {
 #ifdef PROBE_GL
@@ -89,8 +95,10 @@ public:
     explicit Renderer(uint8_t *rdram) : state(rdram,recomp::mem_size,sink) {
         sink.source=&state;
 #ifdef PROBE_GL
-        platform=createProbeEGL(probe_directory);
-        sink.forward=platform->createSink();
+        if(!capture_only) {
+            platform=createProbeEGL(probe_directory);
+            sink.forward=platform->createSink();
+        }
 #endif
         interpreter.setup(&state);
         setup_result=ultramodern::renderer::SetupResult::Success;
@@ -99,6 +107,7 @@ public:
     bool valid() override { return true; }
     bool update_config(const ultramodern::renderer::GraphicsConfig&,const ultramodern::renderer::GraphicsConfig&) override { return true; }
     void enable_instant_present() override {}
+    bool defer_rsp_completion() const override { return true; }
     void send_dl(const OSTask *task) override {
         sink.startTask(completed_tasks.load()+1);
         interpreter.loadUCodeGBI(task->t.ucode,task->t.ucode_data,true);
@@ -112,6 +121,11 @@ public:
             static_cast<unsigned long long>(sink.draws),static_cast<unsigned long long>(sink.triangles),static_cast<unsigned long long>(sink.textured));
     }
     void send_dummy_workload(uint32_t address) override { sink.present(address); }
+    std::vector<uint8_t> read_framebuffer(uint32_t address,uint32_t size) override {
+        std::vector<uint8_t> bytes;
+        sink.readFramebuffer(address,size,bytes);
+        return bytes;
+    }
     void update_screen() override {
         const auto *vi=ultramodern::renderer::get_vi_regs();
         static uint32_t last_width=0,last_h=0,last_control=0;
@@ -133,11 +147,12 @@ static void snapshot() {
         uint32_t(idle->queue),uint32_t(idle->next),static_cast<void *>(idle->context),uint32_t(ultramodern::thread_queue_peek(rdram,ultramodern::running_queue)));
 }
 int main(int argc,char **argv) {
-    if(argc<2) { std::fprintf(stderr,"Usage: %s ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause]\n",argv[0]); return 1; }
+    if(argc<2) { std::fprintf(stderr,"Usage: %s ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture]\n",argv[0]); return 1; }
     if(argc>2) run_seconds=std::atoi(argv[2]);
     if(argc>3) present_ms=std::atoi(argv[3]);
     if(argc>4) enable_batching=std::atoi(argv[4])!=0;
     if(argc>5) { pause_input=std::string(argv[5])=="pause"; adventure_input=pause_input||std::string(argv[5])=="adventure"; }
+    if(argc>6) capture_only=std::string(argv[6])=="capture";
     probe_directory=argv[1];
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
     std::set_terminate([] {
@@ -166,6 +181,12 @@ int main(int argc,char **argv) {
         if(adventure_input) {
             static AdventureProbe probe;
             probe.poll(game_memory,buttons,x,y,pause_input);
+            if(pause_input && game_memory) {
+                static bool previous_pause=false;
+                auto *rdram=game_memory;
+                const bool paused=MEM_W(0,0xffffffff807fbb60ULL)&2;
+                if(paused!=previous_pause) { ++pause_generation; previous_pause=paused; }
+            }
         }
         return true;
     };

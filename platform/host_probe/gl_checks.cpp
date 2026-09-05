@@ -10,6 +10,7 @@
 static bool batching=false;
 unsigned probeCompletedTasks() { return 0; }
 bool probeBatchingEnabled() { return batching; }
+unsigned probePauseGeneration() { return 0; }
 
 static void quad(RT64::FastDraw &draw,float left,float bottom,float right,float top,std::array<float,4> color) {
     const float xy[6][2]={{left,bottom},{right,bottom},{right,top},{left,bottom},{right,top},{left,top}};

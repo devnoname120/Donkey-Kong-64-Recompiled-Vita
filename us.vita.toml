@@ -16,6 +16,24 @@ function_sizes = [
 [patches]
 ignored = ["D_global_asm_80611F0C", "D_global_asm_8071FA80", "D_global_asm_8061ACA0"]
 
+# The original audio loop reads AI_LEN at 0xA4500004 directly. It is a hardware
+# register, not RDRAM; use the runtime's queued-audio query as the desktop patch
+# does. v0 is reloaded at the following instruction, so this preserves its use.
+[[patches.hook]]
+func = "func_global_asm_80601EE4"
+before_vram = 0x80601F0C
+text = "{ extern void osAiGetLength_recomp(uint8_t*, recomp_context*); osAiGetLength_recomp(rdram, ctx); ctx->r3 = ctx->r2; }"
+[[patches.instruction]]
+func = "func_global_asm_80601EE4"
+vram = 0x80601F0C
+value = 0x00000000
+
+# Preserve original CPU framebuffer copies/morphing by first making completed
+# renderer output visible in the game's word-swapped RDRAM.
+[[patches.hook]]
+func = "func_global_asm_8070A848"
+text = "{ extern void dk64_vita_sync_framebuffer(uint8_t*, uint32_t, uint32_t, uint32_t); dk64_vita_sync_framebuffer(rdram, ctx->r5, MEM_HU(0, 0xffffffff80744490ULL), MEM_HU(0, 0xffffffff80744494ULL)); }"
+
 [[patches.hook]]
 func = "func_dk64_boot_800005A8"
 text = """{
