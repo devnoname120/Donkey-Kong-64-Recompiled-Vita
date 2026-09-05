@@ -19,6 +19,9 @@
 #ifdef PROBE_GL
 #include "egl.h"
 #endif
+#ifdef PROBE_GL_AUDIT
+#include "gl_audit.h"
+#endif
 
 extern "C" void recomp_entrypoint(uint8_t *,recomp_context *);
 extern gpr get_entrypoint_address();
@@ -219,6 +222,9 @@ int main(int argc,char **argv) {
             vita_log("PROBE elapsed=%d completed_tasks=%u",run_seconds,completed_tasks.load());
             vita_log("PROBE audio_buffers=%u stereo_frames=%llu",audio_buffers.load(),static_cast<unsigned long long>(audio_samples.load()/2));
             report_resource_audit();
+#ifdef PROBE_GL_AUDIT
+            reportProbeGLStats();
+#endif
             // This bounded diagnostic terminates its whole process. It does not
             // claim to exercise the game's normal shutdown sequence.
             // A few startup buffers do not establish that the audio scheduler

@@ -332,6 +332,26 @@ while toggling each mode bit across cycle, texture, fog, and fill combinations.
 The identical vertex stage is also compiled once per renderer and shared by all
 combiner programs, avoiding repeated runtime compilation of that stage.
 
+Float uniform values are now retained per combiner program. Unused float uniforms
+and unchanged values no longer reach the GL API. The host graphics regression
+checks color changes (including zero), separate values for the same uniform
+name in different programs, texture dimensions/shift/clamp/mask/mirror changes,
+and switches through snapshot/presentation programs. A controlled 32-draw
+sequence fell from 352 uniform calls to zero after its initial draw while
+preserving the expected pixels. Two 35-second host Adventure runs submitted
+118,887/118,938 draws and 2,044,634/67,374 uniform calls respectively, a 96.7%
+reduction per draw. The optional `PROBE_GL_AUDIT=ON` linker wrappers record these
+calls; they are excluded from Vita builds and must not be used for frame-time
+benchmarks.
+
+VitaGL also marks all shader constants dirty on each `glUseProgram`, including
+redundant binds. Draw submission now checks the actual current binding first.
+With warm shader caches and normal controls, the measured Vulkan renderer
+intervals ending at tasks 600/720/840/960 fell from 125.70/126.62/127.54/124.65 ms
+to 121.11/122.14/122.82/120.70 ms. Uniform caching alone did not materially
+improve those intervals. This is a modest result from one emulator comparison,
+not a physical-Vita FPS claim; demanding scenes and audio still need work.
+
 CPU framebuffer requests share an ordered graphics-queue producer with display
 lists. A two-thread regression reproduces a readback overtaking an earlier task
 with implicit producers, then verifies the shared producer preserves their order.

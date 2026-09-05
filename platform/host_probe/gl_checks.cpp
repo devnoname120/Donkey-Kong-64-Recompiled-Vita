@@ -1,4 +1,5 @@
 #include "egl.h"
+#include "gl_audit.h"
 #include "hle/rt64_vi.h"
 #include "fast/rt64_fast_state.h"
 #include "../vita/memory_writes.h"
@@ -77,6 +78,79 @@ static void checkPresentation(ProbeEGL &platform) {
     sink->present(vi); checkPixel({64,128,191});
     vi.origin=0x10000; sink->present(vi); checkPixel({0,0,0});
     sink->present(draw.colorAddress); checkPixel({64,128,191});
+}
+static void checkUniformStateChanges(ProbeEGL &platform) {
+    batching=false;
+    auto sink=platform.createSink();
+    RT64::FastDraw draw;
+    draw.colorAddress=0x400; draw.width=draw.height=8; draw.colorBytes=4;
+    draw.otherMode.H=G_CYC_1CYCLE;
+    const auto mux=[](unsigned input) {
+        return interop::ColorCombiner{0x00ffffff,(15U<<24)|(7U<<21)|(7U<<18)|(input<<6)|(7U<<3)|input};
+    };
+    draw.combine=mux(3); // Primitive color and alpha.
+    draw.primitive={1,0,0,1}; quad(draw,-1,-1,1,1,{1,1,1,1}); sink->draw(draw);
+    resetProbeGLStats();
+    for(unsigned i=0;i<32;++i) sink->draw(draw);
+    const auto repeated=probeGLStats();
+    auto checkColor=[&](std::array<uint8_t,4> expected) {
+        std::vector<uint8_t> actual;
+        if(!sink->readFramebuffer(draw.colorAddress,8*8*4,actual)) throw std::runtime_error("Uniform test framebuffer is missing");
+        for(unsigned p=0;p<64;++p) for(unsigned c=0;c<4;++c)
+            if(actual[p*4+c]!=expected[c]) throw std::runtime_error("Cached uniform changed rendered color");
+    };
+    checkColor({255,0,0,255});
+    draw.primitive={0,0,1,1}; sink->draw(draw); checkColor({0,0,255,255});
+    draw.combine=mux(5); draw.environment={0,1,0,1}; sink->draw(draw); checkColor({0,255,0,255});
+    draw.environment={0,0,0,0}; sink->draw(draw); checkColor({0,0,0,0});
+    // A different program using the same uniform name must own separate data.
+    draw.combine=mux(3); draw.otherMode.L=G_AC_THRESHOLD;
+    draw.primitive={0,1,0,1}; sink->draw(draw); checkColor({0,255,0,255});
+    draw.otherMode.L=0; draw.primitive={0,0,1,1};
+    // Program switches and internal snapshot/presentation programs must not
+    // invalidate another program's stored uniform values.
+    draw.combine=mux(3); sink->draw(draw); checkColor({0,0,255,255});
+    auto snapshot=sink->snapshotFramebuffer(draw.colorAddress,8*8*4);
+    if(!snapshot) throw std::runtime_error("Uniform test snapshot is missing");
+    sink->present(draw.colorAddress);
+    sink->draw(draw); checkColor({0,0,255,255});
+    draw.primitive={1,0,0,1}; sink->draw(draw); checkColor({255,0,0,255});
+    std::printf("Repeated uniform workload: draws=%llu uniform_calls=%llu\n",
+        static_cast<unsigned long long>(repeated.draws),static_cast<unsigned long long>(repeated.uniformCalls));
+    if(repeated.draws!=32 || repeated.uniformCalls)
+        throw std::runtime_error("Identical draw state resubmitted uniforms to GLES");
+}
+static void checkTextureUniformStateChanges(ProbeEGL &platform) {
+    batching=false;
+    auto sink=platform.createSink();
+    auto texture=std::make_shared<RT64::FastTexture>();
+    texture->width=4; texture->height=1; texture->hash=0x41;
+    texture->rgba={255,0,0,255, 0,255,0,255, 0,0,255,255, 255,255,0,255};
+    RT64::FastDraw draw; draw.colorAddress=0x1000; draw.width=draw.height=4; draw.colorBytes=4;
+    draw.otherMode={0,G_CYC_COPY}; draw.textures[0]=texture;
+    draw.tiles[0].cms=draw.tiles[0].cmt=G_TX_CLAMP; draw.tiles[0].lrs=12;
+    quad(draw,-1,-1,1,1,{1,1,1,1});
+    auto sample=[&](float u,std::array<uint8_t,4> expected) {
+        for(auto &v:draw.vertices) { v.uv[0]=u; v.uv[1]=0; }
+        sink->draw(draw);
+        std::vector<uint8_t> actual;
+        if(!sink->readFramebuffer(draw.colorAddress,64,actual)) throw std::runtime_error("Texture uniform framebuffer is missing");
+        for(unsigned p=0;p<16;++p) for(unsigned c=0;c<4;++c)
+            if(actual[p*4+c]!=expected[c]) throw std::runtime_error("Cached texture uniform changed texel selection");
+    };
+    sample(0,{255,0,0,255}); sample(1,{0,255,0,255});
+    draw.tiles[0].uls=4; sample(1,{255,0,0,255});
+    draw.tiles[0].uls=0; draw.tiles[0].shifts=1; sample(3,{0,255,0,255});
+    draw.tiles[0].shifts=0; sample(3,{255,255,0,255});
+    draw.tiles[0].cms=0; draw.tiles[0].masks=1; sample(3,{0,255,0,255});
+    draw.tiles[0].cms=G_TX_MIRROR; sample(3,{255,0,0,255});
+    draw.tiles[0].cms=G_TX_CLAMP; draw.tiles[0].lrs=4; sample(3,{0,255,0,255});
+    draw.tiles[0].lrs=0; sample(3,{255,0,0,255});
+    auto smaller=std::make_shared<RT64::FastTexture>();
+    smaller->width=2; smaller->height=1; smaller->hash=0x42;
+    smaller->rgba={0,0,255,255, 255,255,0,255};
+    draw.textures[0]=smaller; draw.tiles[0].masks=0; draw.tiles[0].lrs=4;
+    sample(1,{255,255,0,255});
 }
 static void checkCPUScanout(ProbeEGL &platform) {
     batching=true;
@@ -433,6 +507,8 @@ int main() {
                 throw std::runtime_error("Texture-unit binding or cached LOD uniform update is incorrect");
         }
         checkPresentation(*platform);
+        checkUniformStateChanges(*platform);
+        checkTextureUniformStateChanges(*platform);
         checkCPUScanout(*platform);
         checkReadback(*platform);
         checkColorImageAliases(*platform);
