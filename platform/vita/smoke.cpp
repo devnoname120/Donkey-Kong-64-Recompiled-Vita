@@ -176,6 +176,30 @@ int main() {
         auto depthImageA=sink->snapshotFramebuffer(colorA,128),depthImageB=sink->snapshotFramebuffer(colorB,128);
         if(!depthImageA || !depthImageB) throw std::runtime_error("Shared depth diagnostic is missing its color images");
         trace("Shared depth test prepared: red/blue above magenta/yellow");
+        constexpr uint32_t aliasAddress=0x260000;
+        RT64::FastDraw aliasDraw;
+        aliasDraw.colorAddress=aliasAddress; aliasDraw.width=aliasDraw.height=8;
+        aliasDraw.fill=true; aliasDraw.scissor={0,0,32,32}; aliasDraw.vertices.resize(6);
+        auto aliasQuad=[&](float left,float bottom,float right,float top,std::array<float,4> color) {
+            aliasDraw.fillColor=color;
+            for(unsigned i=0;i<6;++i) {
+                const auto &p=quad[corners[i]]; auto &v=aliasDraw.vertices[i];
+                v.position[0]=left+(right-left)*p[0]; v.position[1]=bottom+(top-bottom)*p[1];
+            }
+            sink->draw(aliasDraw);
+        };
+        aliasQuad(-1,0,1,1,{1,0,0,1}); aliasQuad(-1,-1,1,0,{0,0,1,1});
+        auto aliasBefore=sink->snapshotFramebuffer(aliasAddress,128);
+        aliasDraw.colorAddress=aliasAddress+48;
+        aliasQuad(0,-1,1,1,{0,1,0,1});
+        // Reinterpret the same bytes as RGBA32, then return to the original
+        // RGBA16 layout without drawing over the result.
+        aliasDraw.colorAddress=aliasAddress; aliasDraw.colorBytes=4; aliasDraw.height=4;
+        aliasDraw.scissor={0,0,0,0}; sink->draw(aliasDraw);
+        aliasDraw.colorBytes=2; aliasDraw.height=8; sink->draw(aliasDraw);
+        auto aliasAfter=sink->snapshotFramebuffer(aliasAddress,128);
+        if(!aliasBefore || !aliasAfter) throw std::runtime_error("Color alias diagnostic is missing its GPU snapshots");
+        trace("Color alias test prepared: original red/blue beside merged red/blue/green");
         for(unsigned frame=0;;++frame) {
             interpreter.processDisplayLists(0x100,reinterpret_cast<RT64::DisplayList *>(state.fromRDRAM(0x100)));
             RT64::FastDraw triangle;
@@ -218,14 +242,14 @@ int main() {
               for(unsigned panel=0;panel<(frame>=360?2U:1U);++panel) {
                 RT64::FastDraw test;
                 test.colorAddress=0x100000; test.depthAddress=0x200000;
-                const auto &image=frame>=360?(panel?depthImageB->texture:depthImageA->texture):frame>=240?changedFeedback:feedback;
+                const auto &image=frame>=480?(panel?aliasAfter->texture:aliasBefore->texture):frame>=360?(panel?depthImageB->texture:depthImageA->texture):frame>=240?changedFeedback:feedback;
                 test.otherMode={0,G_CYC_COPY}; test.textures[0]=image;
                 test.tiles[0].cms=test.tiles[0].cmt=G_TX_CLAMP;
                 test.tiles[0].lrs=(image->width-1)*4; test.tiles[0].lrt=(image->height-1)*4; test.vertices.resize(6);
                 for(unsigned i=0;i<6;++i) {
                     const auto &p=quad[corners[i]]; auto &v=test.vertices[i];
-                    v.position[0]=0.05f+p[0]*0.85f;
-                    v.position[1]=-0.9f+(frame>=360?((1-panel)+p[1])*0.425f:p[1]*0.85f);
+                    v.position[0]=0.05f+(frame>=480?(panel+p[0])*0.425f:p[0]*0.85f);
+                    v.position[1]=-0.9f+(frame>=360 && frame<480?((1-panel)+p[1])*0.425f:p[1]*0.85f);
                     v.uv[0]=p[0]*image->width; v.uv[1]=(1-p[1])*image->height;
                 }
                 sink->draw(test);
@@ -233,6 +257,7 @@ int main() {
                 if(frame==120) trace("Framebuffer feedback panel: expected red above blue, no green");
                 if(frame==240) trace("Same-value CPU store panel: expected red above blue (0,24,255), no cyan");
                 if(frame==360) trace("Shared depth panel: expected red/blue above magenta/yellow");
+                if(frame==480) trace("Alias panel: left original red/blue; right keeps red top and blue lower-left, green on right from row three");
             }
             sink->fullSync();
             if(frame==2) capture();

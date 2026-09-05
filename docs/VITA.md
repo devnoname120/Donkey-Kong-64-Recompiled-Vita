@@ -111,8 +111,8 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   through the DK Rap intro in Vita3K/Vulkan, with no controller button transitions
   and unchanged existing saves. One inspected scene showed 14 presentation FPS;
   this is not a physical-Vita performance measurement.
-  Overlapping GPU aliases and format-reinterpretation
-  readback remain unresolved; native writers outside the notified paths must
+  Mixed-layout and format-reinterpreted texture loads can still require CPU
+  readback; native writers outside the notified paths must
   supply write notifications as well.
 - Color images and depth surfaces now have independent lifetimes. Equal-size
   color buffers that use the same depth address share its depth values, including
@@ -128,6 +128,26 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   The rebuilt Vita game also passed 2,280 graphics tasks through the intro in
   Vita3K/Vulkan with the new depth storage enabled.
   Different-size depth views and general color/depth aliasing still need work.
+- Overlapping RGBA16/32 color images now preserve N64 bytes across changes to
+  their address, dimensions and format using GPU copies. Recorded and observed
+  CPU writes propagate to every overlapping view; complete CPU overwrites let
+  texture loads use RAM again. Cache retirement retains a complete view for
+  subsequent reads and immutable snapshots. Host regressions include odd byte
+  addresses, addresses above 16 MiB, stride/format changes and split-view cache
+  pressure. The split-view test failed before the retirement fix and passes now.
+  All five host integration checks pass with AddressSanitizer and Mesa softpipe.
+  In Vita3K/Vulkan, the diagnostic preserves an original red/blue snapshot beside
+  an overlapping red/blue/green result after an RGBA16-to-RGBA32-to-RGBA16 round
+  trip. All 128 screenshot cell centers match, allowing a maximum JPEG channel
+  error of 7. The native test also caught a shader byte-selection error missed
+  by Mesa; arithmetic selection fixes the observed alternating-pixel corruption.
+  The rebuilt game passed 7,080 graphics tasks in Vita3K/Vulkan without controller
+  button transitions or save changes. Matched 60-second host llvmpipe intro runs
+  with no added presentation delay completed 1,722 tasks with the published
+  renderer and 1,723 with these changes. This shows no meaningful throughput
+  difference for that workload; it is not a physical Vita performance result.
+  Requests spanning several views without one complete containing view, mixed
+  TMEM layouts that need CPU readback, and color/depth aliasing remain limited.
 
 ## Runtime validation
 

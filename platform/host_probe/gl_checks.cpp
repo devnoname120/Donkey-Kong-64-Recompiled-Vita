@@ -108,6 +108,105 @@ static void checkReadback(ProbeEGL &platform) {
             throw std::runtime_error("RGBA32 readback or color-format change is wrong");
     }
 }
+static void checkColorImageAliases(ProbeEGL &platform) {
+    batching=true;
+    for(uint32_t base:{0x400U,0x1800400U}) {
+        std::vector<uint32_t> memory((base+0x1000)/4);
+        auto *rdram=reinterpret_cast<uint8_t *>(memory.data());
+        auto sink=platform.createSink(); sink->setRDRAM(rdram,memory.size()*4);
+        std::vector<uint8_t> expected(512);
+        RT64::FastDraw draw; draw.width=draw.height=8; draw.fill=true;
+        draw.scissor={0,0,32,32};
+        auto paint=[&](uint32_t address,unsigned left,unsigned top,unsigned right,unsigned bottom,uint16_t value) {
+            draw.colorAddress=address;
+            const auto expand=[](unsigned x){return float((x<<3)|(x>>2))/255;};
+            draw.fillColor={expand(value>>11),expand((value>>6)&31),expand((value>>1)&31),float(value&1)};
+            quad(draw,float(left)/4-1,1-float(bottom)/4,float(right)/4-1,1-float(top)/4,{1,1,1,1});
+            sink->draw(draw);
+            for(unsigned y=top;y<bottom;++y) for(unsigned x=left;x<right;++x) {
+                const unsigned at=address-base+(y*8+x)*2;
+                expected[at]=value>>8; expected[at+1]=value;
+            }
+        };
+        auto checkRange=[&](uint32_t address,unsigned size) {
+            std::vector<uint8_t> actual;
+            const auto first=expected.begin()+address-base;
+            if(!sink->readFramebuffer(address,size,actual) || actual!=std::vector<uint8_t>(first,first+size))
+                throw std::runtime_error("Aliased color image lost GPU bytes at "+std::to_string(address));
+        };
+        paint(base,0,0,8,4,0xf801); paint(base,0,4,8,8,0x003f);
+        auto old=sink->snapshotFramebuffer(base,128);
+        const auto original=expected;
+        paint(base+48,4,0,8,8,0x07c1);
+        checkRange(base,128); checkRange(base+48,128);
+        paint(base,0,0,4,8,0xffc1);
+        checkRange(base+48,128); checkRange(base,128);
+        std::vector<uint8_t> saved;
+        if(!sink->readFramebufferSnapshot(*old,saved) || saved!=std::vector<uint8_t>(original.begin(),original.begin()+128))
+            throw std::runtime_error("Aliased rendering altered an earlier snapshot");
+        // An empty scissor changes the selected view without writing pixels.
+        draw.scissor={0,0,0,0}; draw.colorAddress=base; draw.width=4; draw.height=16;
+        sink->draw(draw); checkRange(base,128);
+        auto reshaped=sink->snapshotFramebuffer(base,128);
+        if(!reshaped || reshaped->width!=4 || reshaped->height!=16)
+            throw std::runtime_error("Reshaped framebuffer view was not selected");
+        draw.colorBytes=4; draw.height=8; sink->draw(draw); checkRange(base,128);
+        draw.colorAddress=base+1; sink->draw(draw); checkRange(base+1,128);
+        // Recorded writes must remain visible through every format/stride view.
+        RT64::FastMemoryWrite write{base,1}; write.bytes[0]=0;
+        rdram[base^3]=0; expected[0]=0; sink->notifyMemoryWrites({write});
+        draw.colorAddress=base; draw.width=draw.height=8; draw.colorBytes=2;
+        sink->draw(draw); checkRange(base,128);
+        rdram[(base+1)^3]=0xf8; expected[1]=0xf8;
+        checkRange(base,128); checkRange(base+48,128);
+        // Repeated interpretations must retire redundant views without losing
+        // the only copy of bytes outside the smaller interpretations.
+        for(unsigned width=64;width>=40;--width) {
+            draw.colorAddress=base; draw.width=width; draw.height=1;
+            sink->draw(draw); checkRange(base,128);
+        }
+        draw.width=draw.height=8; sink->draw(draw); checkRange(base,128);
+        if(!sink->readFramebufferSnapshot(*old,saved) || saved!=std::vector<uint8_t>(original.begin(),original.begin()+128))
+            throw std::runtime_error("Retiring alias views invalidated an immutable snapshot");
+        // Once CPU stores replace the whole range, loads must use RAM directly
+        // instead of forcing a GPU readback for an ordinary reused texture.
+        std::vector<RT64::FastMemoryWrite> writes(4);
+        for(unsigned w=0;w<4;++w) {
+            writes[w].address=base+w*32; writes[w].mask=UINT32_MAX;
+            for(unsigned i=0;i<32;++i) {
+                const uint8_t value=uint8_t(w*32+i); writes[w].bytes[i]=value;
+                rdram[(base+w*32+i)^3]=value; expected[w*32+i]=value;
+            }
+        }
+        sink->notifyMemoryWrites(writes); checkRange(base,128);
+        if(sink->snapshotFramebuffer(base,128)) throw std::runtime_error("CPU-owned texture range still requires a GPU snapshot");
+    }
+}
+static void checkColorImageViewRetirement(ProbeEGL &platform) {
+    batching=true;
+    std::vector<uint32_t> memory(0x2000/4);
+    auto sink=platform.createSink();
+    sink->setRDRAM(reinterpret_cast<uint8_t *>(memory.data()),memory.size()*4);
+    constexpr uint32_t base=0x400;
+    RT64::FastDraw draw; draw.colorAddress=base; draw.width=draw.height=8;
+    draw.fill=true; draw.fillColor={1,0,0,1}; draw.scissor={0,0,32,32};
+    quad(draw,-1,-1,1,1,{1,1,1,1}); sink->draw(draw);
+    // Two newer halves collectively cover the original image, but neither
+    // provides the full range required by a later read or texture snapshot.
+    draw.vertices.clear(); draw.scissor={0,0,0,0}; draw.height=4;
+    sink->draw(draw); draw.colorAddress=base+64; sink->draw(draw);
+    draw.width=draw.height=1;
+    for(unsigned i=0;i<20;++i) {
+        draw.colorAddress=base+2+i*2; sink->draw(draw);
+    }
+    std::vector<uint8_t> bytes;
+    if(!sink->readFramebuffer(base,128,bytes) || bytes.size()!=128)
+        throw std::runtime_error("Retiring split aliases lost the full framebuffer view");
+    for(unsigned i=0;i<128;i+=2) if(bytes[i]!=0xf8 || bytes[i+1]!=1)
+        throw std::runtime_error("Consolidating split aliases changed framebuffer bytes");
+    if(!sink->snapshotFramebuffer(base,128))
+        throw std::runtime_error("Retiring split aliases lost the full framebuffer snapshot");
+}
 static void checkDepthImageSharing(ProbeEGL &platform) {
     batching=true;
     std::vector<uint32_t> memory(0x4000/4);
@@ -299,11 +398,13 @@ int main() {
         }
         checkPresentation(*platform);
         checkReadback(*platform);
+        checkColorImageAliases(*platform);
+        checkColorImageViewRetirement(*platform);
         checkDepthImageSharing(*platform);
         checkFramebufferMemoryChanges(*platform);
         checkRecordedFramebufferWrites(*platform);
         checkFramebufferFeedback(*platform);
-        std::puts("GL checks: batching, translucency, textures, VI, RGBA16/32 readback, recorded writes, framebuffer feedback and shared depth passed");
+        std::puts("GL checks: batching, translucency, textures, VI, readback, recorded writes, shared depth and color-buffer aliases passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }
