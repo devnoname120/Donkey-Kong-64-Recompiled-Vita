@@ -1,4 +1,28 @@
-# Donkey Kong 64: Recompiled
+# Donkey Kong 64: Recompiled — PS Vita development port
+
+This fork adds a reusable CPU/vitaGL rendering path to RT64 and a PS Vita frontend
+for DK64 Recompiled. In Vita3K with Vulkan, it currently reaches the main menu,
+the opening Adventure story, player movement/jumping, and a save reload into
+Training Grounds with movement and swimming.
+
+**This is work in progress.** Performance varies by scene and first-use shader
+compilation can stall. Framebuffer effects, broader gameplay and physical Vita
+behavior still need work and validation. The desktop features described below
+are not a feature-completeness claim for this Vita port.
+
+See [the Vita build instructions and validation record](docs/VITA.md). The Vita
+build requires your own US ROM, vitaGL built with `NO_SPLASHSCREEN=1`, and the
+shader compiler installed at `ur0:/data/libshacccg.suprx`. Use **Vulkan** in Vita3K.
+The ROM and proprietary shader compiler are not included.
+
+The modified renderer, runtime and recompiler are pinned public submodules:
+
+```sh
+git clone --recurse-submodules https://github.com/devnoname120/Donkey-Kong-64-Recompiled-Vita.git
+```
+
+## Upstream desktop project
+
 Donkey Kong 64: Recompiled is a project that uses [N64: Recompiled](https://github.com/Mr-Wiseguy/N64Recomp) to **statically recompile** Donkey Kong 64 into a native port with many new features and enhancements. This project uses [RT64](https://github.com/rt64/rt64) as the rendering engine to provide some of these enhancements.
 
 ### [Check out the latest release here](https://github.com/Rainchus/Donkey-Kong-64-Recompiled/releases).

@@ -8,6 +8,10 @@
 *.z64
 *.v64
 *.n64
+*.suprx
+*.vpk
+*.velf
+*.self
 
 # Output C files
 RecompiledFuncs/
