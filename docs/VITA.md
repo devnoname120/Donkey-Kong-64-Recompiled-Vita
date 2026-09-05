@@ -366,6 +366,14 @@ docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build-quiet 
     cmake --build build/vita-hardware --target DK64Recompiled.vpk-vpk -j6
 ```
 
+For the optional vitaGL readback speedhack, add
+`--build-arg VITAGL_READBACKS_SPEEDHACK=1` to the image build and
+`-DRT64_FAST_READBACKS_SPEEDHACK=ON` to CMake. Use a separate image tag and build
+directory when comparing variants. Both settings are needed: RT64 normally calls
+`glFinish` before readback, which would retain a hard wait even with vitaGL's flag
+enabled. The opt-in build omits that wait and can return earlier frame data.
+Physical Vita tests must establish the performance and visual tradeoff.
+
 The package is `build/vita-hardware/platform/vita/DK64Recompiled.vpk`. It uses
 normal controls and saves, removes the frontend log files, diagnostic counters,
 audio peak scans and debug sections, and rejects configurations that enable
