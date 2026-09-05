@@ -29,6 +29,8 @@ public:
             const auto &t=*draw.textures[i];
             if(textures.insert(t.hash).second) {
                 vita_log("Decoded texture %016llx %ux%u fmt=%u siz=%u",static_cast<unsigned long long>(t.hash),t.width,t.height,draw.tiles[i].fmt,draw.tiles[i].siz);
+                // GPU views have no CPU pixel payload to dump.
+                if(t.storage) continue;
                 char path[128]; std::snprintf(path,sizeof(path),"ux0:data/dk64recompiled/texture-%016llx.rgba",static_cast<unsigned long long>(t.hash));
                 SceUID fd=sceIoOpen(path,SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
                 if(fd>=0) { const int written=sceIoWrite(fd,t.rgba.data(),t.rgba.size()); sceIoClose(fd); if(written!=int(t.rgba.size())) vita_log("Texture capture write failed"); }
@@ -37,6 +39,14 @@ public:
         backend->draw(draw);
     }
     void fullSync() override { backend->fullSync(); }
+    void flushDraws() override { backend->flushDraws(); }
+    void setRDRAM(const uint8_t *rdram,size_t size) override { backend->setRDRAM(rdram,size); }
+    std::shared_ptr<const RT64::FastFramebuffer> snapshotFramebuffer(uint32_t address,uint32_t size) override {
+        return backend->snapshotFramebuffer(address,size);
+    }
+    bool readFramebufferSnapshot(const RT64::FastFramebuffer &snapshot,std::vector<uint8_t> &bytes) override {
+        return backend->readFramebufferSnapshot(snapshot,bytes);
+    }
     void present(uint32_t address) override { backend->present(address); }
     void present(const RT64::VI &vi) override { backend->present(vi); }
     bool readFramebuffer(uint32_t address,uint32_t size,std::vector<uint8_t> &bytes) override {

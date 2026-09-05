@@ -1,5 +1,6 @@
 #include "egl.h"
 #include "hle/rt64_vi.h"
+#include "fast/rt64_fast_state.h"
 #include <GLES2/gl2.h>
 #include <array>
 #include <algorithm>
@@ -105,6 +106,90 @@ static void checkReadback(ProbeEGL &platform) {
             throw std::runtime_error("RGBA32 readback or color-format change is wrong");
     }
 }
+static void checkFramebufferFeedback(ProbeEGL &platform) {
+    batching=true;
+    auto sink=platform.createSink();
+    std::vector<uint32_t> memory(2*1024*1024);
+    RT64::State state(reinterpret_cast<uint8_t *>(memory.data()),memory.size()*4,*sink);
+    RT64::FastDraw draw;
+    draw.colorAddress=0x600000; draw.width=draw.height=8; draw.fill=true;
+    draw.fillColor={1,0,0,1}; quad(draw,-1,0,1,1,{1,1,1,1}); sink->draw(draw);
+    draw.fillColor={0,0,1,1}; quad(draw,-1,-1,1,0,{1,1,1,1}); sink->draw(draw);
+    auto &rdp=*state.rdp;
+    rdp.setTextureImage(G_IM_FMT_RGBA,G_IM_SIZ_16b,8,draw.colorAddress);
+    rdp.setTile(7,G_IM_FMT_RGBA,G_IM_SIZ_16b,1,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+    rdp.loadTile(7,8,4,20,24); // Four columns, six rows; a subview crosses the color boundary.
+    rdp.setTile(0,G_IM_FMT_RGBA,G_IM_SIZ_16b,1,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+    rdp.setTileSize(0,0,0,12,20);
+    auto loaded=rdp.decodeTexture(0);
+    if(!loaded->storage || loaded->width!=4 || loaded->height!=6 || loaded->storageX!=2 || loaded->storageY!=1)
+        throw std::runtime_error("Framebuffer load/render tile mapping is incorrect");
+    // Repainting the source after the load must not alter the loaded texture.
+    draw.fillColor={0,1,0,1}; quad(draw,-1,-1,1,1,{1,1,1,1}); sink->draw(draw);
+    draw.colorAddress=0x610000; draw.fill=false; draw.textures[0]=loaded;
+    draw.tiles[0].cms=draw.tiles[0].cmt=G_TX_CLAMP;
+    draw.tiles[0].lrs=12; draw.tiles[0].lrt=20;
+    draw.otherMode={0,G_CYC_COPY};
+    quad(draw,-1,-1,1,1,{1,1,1,1});
+    for(auto &v:draw.vertices) { v.uv[0]=(v.position[0]+1)*2; v.uv[1]=(1-v.position[1])*3; }
+    sink->draw(draw); sink->fullSync();
+    std::vector<uint8_t> output;
+    if(!sink->readFramebuffer(draw.colorAddress,128,output)) throw std::runtime_error("Feedback output is missing");
+    for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
+        const unsigned expected=y<4?0xf801:0x003f;
+        const unsigned at=(y*8+x)*2;
+        if(output[at]!=(expected>>8) || output[at+1]!=(expected&255))
+            throw std::runtime_error("Framebuffer feedback changed after load or has incorrect orientation");
+    }
+    // Reusing the old framebuffer memory as ordinary texture data must not
+    // return the cached green framebuffer instead of the new CPU pixels.
+    for(unsigned i=0;i<64;++i) {
+        state.RDRAM[(0x600000+i*2)^3]=0xff;
+        state.RDRAM[(0x600001+i*2)^3]=0xff;
+    }
+    rdp.setTextureImage(G_IM_FMT_RGBA,G_IM_SIZ_16b,8,0x600000);
+    rdp.loadTile(7,0,0,12,0); rdp.setTileSize(0,0,0,12,0);
+    auto reused=rdp.decodeTexture(0);
+    draw.colorAddress=0x620000; draw.textures[0]=reused; draw.tiles[0].lrt=0;
+    for(auto &v:draw.vertices) v.uv[1]=0.5f;
+    sink->draw(draw);
+    if(!sink->readFramebuffer(draw.colorAddress,128,output) || output!=std::vector<uint8_t>(128,255))
+        throw std::runtime_error("CPU texture data was replaced by a stale framebuffer");
+}
+static void checkFramebufferMemoryChanges(ProbeEGL &platform) {
+    batching=true;
+    for(unsigned bpp:{2U,4U}) {
+        auto sink=platform.createSink();
+        std::vector<uint8_t> memory(8192,0xaa);
+        sink->setRDRAM(memory.data(),memory.size());
+        RT64::FastDraw draw;
+        draw.colorAddress=0x402; draw.width=draw.height=4; draw.colorBytes=bpp;
+        draw.memoryEpoch=1; draw.fill=true; draw.fillColor={0.25f,0.5f,0.75f,1};
+        quad(draw,-1,-1,1,1,{1,1,1,1}); sink->draw(draw);
+        std::vector<uint8_t> expected,output;
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,expected)) throw std::runtime_error("Missing CPU merge test image");
+        const auto before=expected;
+        auto old=sink->snapshotFramebuffer(draw.colorAddress,16*bpp);
+        auto change=[&](unsigned at,uint8_t byte) { memory[(draw.colorAddress+at)^3]=byte; expected[at]=byte; };
+        // Single-byte writes include half of an RGBA16 green channel and RGBA32
+        // alpha. Other bytes must keep the GPU result, not the stale 0xaa RAM.
+        change(1,0); change(3*bpp,0x98); change(14*bpp,0xf8); change(14*bpp+1,1);
+        if(bpp==4) change(7,0);
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,output) || output!=expected)
+            throw std::runtime_error("Changed RAM bytes did not merge with preserved framebuffer bytes ("+std::to_string(bpp)+")");
+        if(!sink->readFramebufferSnapshot(*old,output) || output!=before)
+            throw std::runtime_error("RAM changes altered an already loaded framebuffer snapshot");
+        // A subsequent graphics task must ingest RAM changes before drawing;
+        // merely refreshing the RAM shadow would lose the CPU update.
+        change(0,0x27); ++draw.memoryEpoch;
+        draw.fillColor={1,1,0,1}; quad(draw,0,-1,1,0,{1,1,1,1}); sink->draw(draw);
+        const uint8_t yellow16[]={0xff,0xc1},yellow32[]={255,255,0,255};
+        for(unsigned y=2;y<4;++y) for(unsigned x=2;x<4;++x)
+            std::copy_n(bpp==2?yellow16:yellow32,bpp,expected.begin()+(y*4+x)*bpp);
+        if(!sink->readFramebuffer(draw.colorAddress,16*bpp,output) || output!=expected)
+            throw std::runtime_error("New graphics task lost CPU changes or restored stale RAM over GPU output");
+    }
+}
 int main() {
     try {
         auto platform=createProbeEGL(".");
@@ -124,7 +209,9 @@ int main() {
         }
         checkPresentation(*platform);
         checkReadback(*platform);
-        std::puts("GL checks: exact batched/unbatched pixels; translucent order, textures, uniforms, VI and RGBA16/32 range readback passed");
+        checkFramebufferMemoryChanges(*platform);
+        checkFramebufferFeedback(*platform);
+        std::puts("GL checks: batching, translucency, textures, VI, RGBA16/32 readback, changed RAM bytes and immutable framebuffer feedback passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }

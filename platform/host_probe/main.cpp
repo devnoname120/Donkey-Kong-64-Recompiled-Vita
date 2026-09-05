@@ -72,6 +72,14 @@ public:
         if(forward) forward->draw(draw);
     }
     void fullSync() override { if(forward) forward->fullSync(); }
+    void flushDraws() override { if(forward) forward->flushDraws(); }
+    void setRDRAM(const uint8_t *rdram,size_t size) override { if(forward) forward->setRDRAM(rdram,size); }
+    std::shared_ptr<const RT64::FastFramebuffer> snapshotFramebuffer(uint32_t address,uint32_t size) override {
+        return forward?forward->snapshotFramebuffer(address,size):nullptr;
+    }
+    bool readFramebufferSnapshot(const RT64::FastFramebuffer &snapshot,std::vector<uint8_t> &bytes) override {
+        return forward && forward->readFramebufferSnapshot(snapshot,bytes);
+    }
     void present(uint32_t address) override {
         if(forward) forward->present(address);
         if(present_ms) std::this_thread::sleep_for(std::chrono::milliseconds(present_ms));
@@ -98,6 +106,7 @@ public:
         if(!capture_only) {
             platform=createProbeEGL(probe_directory);
             sink.forward=platform->createSink();
+            sink.forward->setRDRAM(rdram,recomp::mem_size);
         }
 #endif
         interpreter.setup(&state);

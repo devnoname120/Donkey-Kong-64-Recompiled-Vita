@@ -81,6 +81,42 @@ int main() {
         textured.vertices.resize(6);
         const unsigned corners[6]={0,1,2,0,2,3};
         const float quad[4][2]={{0,0},{1,0},{1,1},{0,1}};
+        RT64::FastDraw source;
+        source.colorAddress=0x180000; source.width=source.height=8; source.fill=true;
+        source.vertices.resize(6);
+        auto sourceQuad=[&](float bottom,float top,std::array<float,4> color) {
+            source.fillColor=color;
+            for(unsigned i=0;i<6;++i) {
+                const auto &p=quad[corners[i]];
+                source.vertices[i].position[0]=p[0]*2-1;
+                source.vertices[i].position[1]=bottom+p[1]*(top-bottom);
+            }
+            sink->draw(source);
+        };
+        sourceQuad(0,1,{1,0,0,1}); sourceQuad(-1,0,{0,0,1,1});
+        state.rdp->setTextureImage(G_IM_FMT_RGBA,G_IM_SIZ_16b,8,source.colorAddress);
+        state.rdp->setTile(7,G_IM_FMT_RGBA,G_IM_SIZ_16b,1,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+        state.rdp->loadTile(7,8,4,20,24);
+        state.rdp->setTile(0,G_IM_FMT_RGBA,G_IM_SIZ_16b,1,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+        state.rdp->setTileSize(0,0,0,12,20);
+        auto feedback=state.rdp->decodeTexture(0);
+        if(!feedback->storage) throw std::runtime_error("Framebuffer feedback did not produce a GPU view");
+        sourceQuad(-1,1,{0,1,0,1});
+        trace("Framebuffer snapshot captured red/blue; source repainted green");
+        // Keep the high byte of the GPU's green (0x07c1) in the lower half,
+        // while changing only the low byte in RAM. The result is cyan (0x073f).
+        for(unsigned y=0;y<8;++y) for(unsigned x=0;x<8;++x) {
+            const uint32_t at=source.colorAddress+(y*8+x)*2;
+            if(y<4) state.RDRAM[at^3]=0xf8;
+            state.RDRAM[(at+1)^3]=y<4?1:0x3f;
+        }
+        state.rdp->setTile(7,G_IM_FMT_RGBA,G_IM_SIZ_16b,2,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+        state.rdp->loadTile(7,0,0,28,28);
+        state.rdp->setTile(0,G_IM_FMT_RGBA,G_IM_SIZ_16b,2,0,0,G_TX_CLAMP,G_TX_CLAMP,0,0,0,0);
+        state.rdp->setTileSize(0,0,0,28,28);
+        auto changedFeedback=state.rdp->decodeTexture(0);
+        if(!changedFeedback->storage) throw std::runtime_error("Framebuffer merge diagnostic requires a GPU texture view");
+        trace("Merged changed RAM bytes into GPU image; expected red above cyan");
         for(unsigned frame=0;;++frame) {
             interpreter.processDisplayLists(0x100,reinterpret_cast<RT64::DisplayList *>(state.fromRDRAM(0x100)));
             RT64::FastDraw triangle;
@@ -96,6 +132,7 @@ int main() {
             }
             sink->draw(triangle);
             for(unsigned mode=0;mode<3;++mode) {
+                if(frame>=120 && mode==1) continue;
                 textured.otherMode.H=mode==1?0x00992c00:G_CYC_COPY;
                 textured.otherMode.L=mode==1?0x0c192078:0;
                 textured.combine={0xfc26a004,0x1f1093ff};
@@ -117,6 +154,22 @@ int main() {
                     v.uv[0]=p[0]*128-32; v.uv[1]=p[1]*128-32;
                 }
                 sink->draw(textured);
+            }
+            if(frame>=120) {
+                RT64::FastDraw test;
+                test.colorAddress=0x100000; test.depthAddress=0x200000;
+                const auto &image=frame>=240?changedFeedback:feedback;
+                test.otherMode={0,G_CYC_COPY}; test.textures[0]=image;
+                test.tiles[0].cms=test.tiles[0].cmt=G_TX_CLAMP;
+                test.tiles[0].lrs=(image->width-1)*4; test.tiles[0].lrt=(image->height-1)*4; test.vertices.resize(6);
+                for(unsigned i=0;i<6;++i) {
+                    const auto &p=quad[corners[i]]; auto &v=test.vertices[i];
+                    v.position[0]=0.05f+p[0]*0.85f; v.position[1]=-0.9f+p[1]*0.85f;
+                    v.uv[0]=p[0]*image->width; v.uv[1]=(1-p[1])*image->height;
+                }
+                sink->draw(test);
+                if(frame==120) trace("Framebuffer feedback panel: expected red above blue, no green");
+                if(frame==240) trace("Framebuffer memory merge panel: expected red above cyan");
             }
             sink->fullSync();
             if(frame==2) capture();

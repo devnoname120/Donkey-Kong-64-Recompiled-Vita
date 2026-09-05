@@ -86,6 +86,20 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   source through this API before executing the original CPU copy and morphing.
   Host screenshots show the blurred pause background and successful resume;
   native Vita3K readback remains subject to the limitation below.
+- Framebuffer texture loads now retain immutable GPU snapshots and TMEM byte
+  provenance. Compatible RGBA16/32 subregions sample those snapshots directly;
+  mixed or reinterpreted TMEM layouts materialize the captured pixels on demand.
+  Host tests cover split load/render tiles, bank/row mapping, snapshot lifetime,
+  partial RAM changes, and reuse of framebuffer memory as texture data.
+- Changed RAM bytes are merged into the GPU color image without reading the GPU
+  image back to the CPU. RGBA16 half-pixel writes preserve the other byte, and
+  RGBA32 writes preserve untouched channels. The Vita diagnostic visibly shows
+  the expected red/cyan result in Vita3K/Vulkan. All four host integration checks
+  pass; a separate 60-second host GL intro run completed 1,727 graphics tasks
+  without simulated game inputs and rendered the colored character intro.
+  These checks do not establish general framebuffer coherence: same-value CPU
+  stores cannot be inferred from RAM comparisons, overlapping GPU aliases remain
+  unresolved, and format-reinterpretation readback still has the Vita3K limitation.
 
 ## Runtime validation
 
