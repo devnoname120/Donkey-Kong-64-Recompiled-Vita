@@ -252,6 +252,33 @@ floor disabled; enabling that floor changed the expected control case. Vita
 retains authored actor distances. These comparisons model helper functions and
 do not establish complete rendered lighting or distant-model appearance.
 
+The remaining prop, fluid and lens-flare matrix patches have also been compared
+against their original generated routines. Vita retains their original rendering
+paths at the game rate. The prop replacements add configurable desktop distance
+floors and matrix interpolation groups; with that floor disabled, 672 model and
+384 sprite cases match commands, stored matrices/state and helper arguments after
+removing only interpolation groups and balanced identity-matrix wrappers. A
+positive distance setting changes five distant-object controls while leaving
+the excluded melon crate unchanged. These checks execute the real generated
+matrix functions but model visibility, lighting and resource helpers.
+
+The fluid and lens-flare comparisons cover 256 fluid, 96 flare-renderer and 384
+flare-driver cases, including frame banks, fluid initialization flags and flare
+visibility countdowns. Original vector math runs in the flare fixture; projection
+and drawing helpers are modeled. Normalized commands and helper arguments match,
+but this does not establish identical final modelview state: upstream scopes
+each `displayImage` matrix load for interpolation, while Vita retains the original
+caller's state behavior. These results support retaining the original paths;
+actual prop/fluid geometry, lens-flare pixels and following overlays still need
+gameplay validation on physical Vita.
+
+Pause-page navigation also retains the original switcher. Its page wrap,
+alternating buffers, slide clamp, completion flags and sound/redraw arguments
+match compiled upstream in 864 paired boundary cases. The desktop addition is
+an interpolation lockdown when a slide finishes. Drawing and sound callbacks
+are modeled in this check; pause rendering, snapshot readback and the remaining
+HUD patches require their own validation.
+
 Portal traversal, chunk scissors and distant-screen visibility also remain
 paired with the original 4:3 projection. The original traversal can mark a
 billboard visible without loading the adjoining chunk. Desktop patches remove

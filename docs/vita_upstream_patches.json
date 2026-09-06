@@ -466,11 +466,11 @@
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_806ABC94",
       "compiled": true,
-      "purpose": "Camera/actor interpolation and cutscene behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Disable desktop interpolation after a pause-page slide completes",
+      "disposition": "retained_original",
+      "reason": "The original pause switcher already handles navigation priority, page wrap, alternating page buffers, twenty-unit slide steps, completion flags and sound events. Upstream adds a two-frame interpolation lockdown on completion. Vita keeps the original switcher because the renderer has no interpolated intermediate frames.",
+      "evidence": "The original 106-instruction routine and compiled upstream replacement match exactly in 864 paired cases: both active page buffers, three page-count limits, first/last pages, simultaneous/opposite/no navigation buttons and nine positive/negative slide offsets around the clamp and completion boundaries. Checks cover the full pause state record with guards, return value, both page visibility flags, the existing completion-state byte and redraw/sound arguments. Drawing and sound callbacks are modeled; upstream-only interpolation-timer storage is excluded.",
+      "next_action": "Validate pause-page changes and final page placement in native gameplay and on physical Vita. Keep this navigation decision separate from the pause-drawing, framebuffer-readback and HUD patches still under review."
     },
     {
       "source": "patches/patches_interpolation.c",
@@ -896,11 +896,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_80636FFC",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage; mtx tag",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Apply desktop prop draw-distance floors and tag prop-model matrices",
+      "disposition": "retained_original",
+      "reason": "Retain the original prop visibility, opacity, lighting and model matrices at the native game rate. Upstream adds configurable minimum draw distances plus identity-matrix pushes and interpolation groups. Its prop filter excludes melon crates from the added distance floor; these desktop features are not enabled by the Vita integration.",
+      "evidence": "Paired the original 732-instruction routine with the compiled upstream replacement. With the desktop distance floor zero and only interpolation groups/balanced identity pushes removed from command comparison, 672 paired cases match commands, model/matrix/script state and helper arguments exactly. Cases vary seven prop types, distance boundaries, both frame banks, player index, script/lighting/opacity branches and animation. The fixture uses real generated gu matrix functions and models gameplay helpers. A positive distance-floor control changes a regular prop but preserves the excluded melon crate.",
+      "next_action": "Validate prop visibility and fades in later maps on physical Vita; revisit draw-distance consumers and matrix-group storage together if desktop distance or interpolation features are added."
     },
     {
       "source": "patches/patches_matrix.c",
@@ -956,11 +956,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_80637B6C",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Apply a desktop prop-sprite draw-distance floor and tag sprite matrices",
+      "disposition": "retained_original",
+      "reason": "Retain original sprite distance culling/fading, frame-bank matrices and texture modes. Upstream adds its configurable minimum distance plus an identity-matrix/interpolation group around the sprite-layer loop. The current Vita renderer consumes original game frames and does not use those groups.",
+      "evidence": "Paired the original 1492-instruction routine with compiled upstream. After disabling the desktop distance floor and removing only interpolation groups/balanced identity wrappers, 384 paired cases match commands, stored matrices, texture-cache state and helper arguments exactly. They cover four texture sizes, CI palettes, dual-texture blending, both frame banks, two player indices, culling/lighting flags and distance boundaries. Real generated gu matrix functions are used; projection, sprite decoding, lighting and visibility predicates are modeled. Raising the desktop floor changes all four distant-sprite positive controls.",
+      "next_action": "Validate actual prop sprites, palette transitions and distance fades in later maps on physical Vita; the modeled helpers and command comparisons do not prove final scene pixels."
     },
     {
       "source": "patches/patches_matrix.c",
@@ -986,11 +986,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_8065FD88",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Tag fluid matrices and vertices for desktop interpolation",
+      "disposition": "retained_original",
+      "reason": "The original fluid list selection and one-time display-list initialization remain. Upstream surrounds each selected fluid with an identity-matrix push/pop and a vertex-interpolation group, assigning a per-pass group ID. Vita retains the original rendering path without interpolated intermediate frames.",
+      "evidence": "Paired the original 76-instruction routine with compiled upstream: 256 paired cases match normalized commands, helper arguments and final fluid flags for empty/single/multiple lists, both banks, pass filters, all low three flag bits and repeat draws. Normalization removes only interpolation groups and balanced identity wrappers. Scissor and mesh-initialization helpers are modeled. The original 300-instruction 80660070 mesh builder emits vertex/triangle and RDP commands, with no matrix push/load/pop commands.",
+      "next_action": "Validate water/lava geometry and scissor boundaries during physical gameplay; these list-selection/initialization comparisons do not render the fluid meshes."
     },
     {
       "source": "patches/patches_matrix.c",
@@ -1036,21 +1036,21 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_80701098",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Tag the twelve lens-flare image transforms for interpolation",
+      "disposition": "retained_original",
+      "reason": "Retain original flare vector math, intensity/color calculations, image arguments and bright-screen tint. Upstream adds a separate identity-matrix/interpolation scope for each of the twelve image draws. Those scopes serve the desktop interpolation path; Vita retains the original displayImage matrix behavior.",
+      "evidence": "Paired the original 766-instruction routine with compiled upstream. Ninety-six paired cases varying light direction, opacity, color and frame bank match emitted commands and helper arguments exactly after removing only interpolation groups/balanced identity wrappers. Vector add/subtract/scale/normalize/dot helpers execute their real generated code. Projection, displayImage and full-screen tint are modeled. This comparison does not assert identical post-call modelview state: upstream scopes displayImage matrix loads, while the original keeps its established caller behavior.",
+      "next_action": "Validate lens-flare appearance and following overlays in native gameplay and on physical Vita; evaluate displayImage state and matrix-group allocation together if importing interpolation."
     },
     {
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_807007B8",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Assign stable interpolation identities to visible lens-flare groups",
+      "disposition": "retained_original",
+      "reason": "The original driver already performs flare render-state setup, selects the opposite frame-bank visibility counters, decrements nonzero counters, invokes the flare renderer and restores dithering. Upstream adds the per-flare base transform ID consumed by its new image interpolation groups.",
+      "evidence": "Paired the original 143-instruction routine with compiled upstream. In 384 paired zero/one/two/three-flare cases, both banks and varied light directions/colors/visibility counts, normalized commands, projection/image/tint arguments and all six visibility-counter bytes match. Each driver calls its corresponding actual 80701098 implementation; only interpolation groups and balanced identity wrappers are removed from command comparison. Projection and drawing helpers remain modeled, so this is not a pixel or complete downstream-state test.",
+      "next_action": "Validate flare visibility and transitions to subsequent overlays on physical Vita; revisit the driver ID assignment together with the twelve-image interpolation groups."
     },
     {
       "source": "patches/patches_matrix.c",
