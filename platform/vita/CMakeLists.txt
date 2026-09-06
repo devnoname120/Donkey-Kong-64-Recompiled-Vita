@@ -48,7 +48,7 @@ if(DK64_VITA_GAME)
         target_compile_definitions(ultramodern PRIVATE RECOMP_SCHEDULER_DIAGNOSTICS)
         target_compile_options(dk64_recompiled_vita PRIVATE -finstrument-functions)
     endif()
-    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp map_probe.cpp
+    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp map_probe.cpp camera_probe.cpp
         register_overlays.cpp
         ${CMAKE_SOURCE_DIR}/src/game/rom_decompression.cpp
         ${CMAKE_SOURCE_DIR}/rsp/n_aspMain.cpp)
@@ -67,6 +67,11 @@ if(DK64_VITA_GAME)
     if(DK64_VITA_PROBE_MAP AND NOT DK64_VITA_SCRIPTED_INPUT)
         message(FATAL_ERROR "Map entry probes require DK64_VITA_SCRIPTED_INPUT=ON and the separate probe title")
     endif()
+    option(DK64_VITA_PROBE_CAMERA "Exercise the camera in the separate Japes map probe" OFF)
+    if(DK64_VITA_PROBE_CAMERA AND (NOT DK64_VITA_SCRIPTED_INPUT OR NOT DK64_VITA_PROBE_MAP STREQUAL "7"
+        OR DK64_VITA_SCRIPTED_PAUSE OR DK64_VITA_PROFILE_FUNCTIONS))
+        message(FATAL_ERROR "Camera probe requires scripted input, map 7, and no pause script or function profiler")
+    endif()
     if(NOT DK64_VITA_DIAGNOSTICS AND (DK64_VITA_PROFILE_FUNCTIONS OR DK64_VITA_TRACE_RENDERER
         OR DK64_VITA_SCRIPTED_INPUT OR DK64_VITA_SCRIPTED_PAUSE OR RT64_FAST_VALIDATE_UPLOADS))
         message(FATAL_ERROR "Diagnostic instrumentation and scripted inputs require DK64_VITA_DIAGNOSTICS=ON")
@@ -75,6 +80,7 @@ if(DK64_VITA_GAME)
     # not require recompiling every ROM function.
     target_compile_definitions(dk64_recompiled_vita PRIVATE DK64_VITA_MAP_PROBE_ENABLED=$<BOOL:${DK64_VITA_PROBE_MAP}>)
     set_property(SOURCE map_probe.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_PROBE_MAP=${DK64_VITA_PROBE_MAP})
+    set_property(SOURCE map_probe.cpp camera_probe.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_PROBE_CAMERA=$<BOOL:${DK64_VITA_PROBE_CAMERA}>)
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_INPUT=$<BOOL:${DK64_VITA_SCRIPTED_INPUT}>)
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_AUDIO_CAPTURE=$<BOOL:${DK64_VITA_AUDIO_CAPTURE}>)
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_MAP_PROBE_ENABLED=$<BOOL:${DK64_VITA_PROBE_MAP}>)
@@ -92,6 +98,9 @@ if(DK64_VITA_GAME)
         SceAudio_stub SceAudioIn_stub SceCtrl_stub SceTouch_stub SceHid_stub SceMotion_stub
         SceIme_stub SceAppUtil_stub ScePower_stub SceAppMgr_stub SceSysmodule_stub m)
     target_link_options(DK64Recompiled PRIVATE -Wl,--gc-sections -Wl,--wrap=osPiRawStartDma_recomp)
+    if(DK64_VITA_PROBE_CAMERA)
+        target_link_options(DK64Recompiled PRIVATE -Wl,--wrap=func_global_asm_8061134C -Wl,--wrap=func_global_asm_80611408)
+    endif()
     if(DK64_VITA_AUDIO_CAPTURE)
         target_sources(DK64Recompiled PRIVATE audio_liveness.cpp)
         target_link_options(DK64Recompiled PRIVATE -Wl,--wrap=sceAudioOutOpenPort -Wl,--wrap=sceAudioOutOutput)
@@ -137,3 +146,15 @@ target_link_libraries(rt64_semaphore_smoke PRIVATE "-Wl,--whole-archive" pthread
 vita_create_self(rt64_semaphore_smoke.self rt64_semaphore_smoke UNSAFE)
 vita_create_vpk(rt64_semaphore_smoke.vpk RT64S0001 rt64_semaphore_smoke.self
     VERSION 01.00 NAME "RT64 Semaphore Test")
+
+# Exercise the ARM conversion helpers and FPSCR on the target itself. This is
+# a separate application and does not add instrumentation to the game.
+add_executable(dk64_fenv_smoke fenv_smoke.c)
+target_include_directories(dk64_fenv_smoke PRIVATE
+    ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include)
+target_compile_options(dk64_fenv_smoke PRIVATE -O2 -mcpu=cortex-a9 -mfpu=neon
+    -mfloat-abi=hard -fno-builtin)
+target_link_libraries(dk64_fenv_smoke PRIVATE m SceLibKernel_stub SceIofilemgr_stub)
+vita_create_self(dk64_fenv_smoke.self dk64_fenv_smoke UNSAFE)
+vita_create_vpk(DK64FenvControl.vpk DK64FP001 dk64_fenv_smoke.self
+    VERSION 01.00 NAME "DK64 Fenv Control")

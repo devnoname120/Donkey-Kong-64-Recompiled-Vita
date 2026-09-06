@@ -7,6 +7,10 @@
 
 extern "C" void func_global_asm_805FF378(uint8_t *,recomp_context *);
 extern "C" void func_global_asm_80712774(uint8_t *,recomp_context *);
+#if DK64_VITA_PROBE_CAMERA
+extern "C" uint32_t dk64_vita_camera_probe(uint8_t *,recomp_context *);
+extern "C" void dk64_vita_prepare_camera_probe(uint8_t *,recomp_context *);
+#endif
 
 namespace {
 struct MapProbe {
@@ -38,17 +42,26 @@ void update_map_probe(MapProbe &probe,uint8_t *rdram,recomp_context *ctx,int des
             || (MEM_BU(0,0xffffffff8076a0b1ULL)&1)
             || std::bit_cast<float>(uint32_t(MEM_W(0,0xffffffff807fd88cULL)))!=0.0f) return;
         probe.requested=true;
+#if DK64_VITA_PROBE_CAMERA
+        dk64_vita_prepare_camera_probe(rdram,ctx);
+#endif
         recomp_context call=*ctx;
         call.f_odd=call.mips3_float_mode?&call.f1.u32l:&call.f0.u32h;
         call.r29=ADD32(call.r29,-0x20);
-        call.r4=destination; call.r5=0;
+        call.r4=destination;
+#if DK64_VITA_PROBE_CAMERA
+        constexpr int destination_exit=13;
+#else
+        constexpr int destination_exit=0;
+#endif
+        call.r5=destination_exit;
         // Snide's original entry supplies a practice-mode return route without
         // requiring a saved bonus-barrel exit from the surrounding level.
         if(destination==101 || destination==141 || destination==142 || destination==143)
             func_global_asm_80712774(rdram,&call);
         else func_global_asm_805FF378(rdram,&call);
-        vita_log("Map probe requested map=%d exit=0 from=%d; next_map=%d next_exit=%d pending=%u mode=%u",
-            destination,map,MEM_W(0,0xffffffff807444e4ULL),MEM_W(0,0xffffffff807444e8ULL),
+        vita_log("Map probe requested map=%d exit=%d from=%d; next_map=%d next_exit=%d pending=%u mode=%u",
+            destination,destination_exit,map,MEM_W(0,0xffffffff807444e4ULL),MEM_W(0,0xffffffff807444e8ULL),
             unsigned(MEM_BU(0,0xffffffff8076a0b1ULL)&1),unsigned(MEM_BU(0,0xffffffff80755318ULL)));
     }
     if(map!=destination) return;
@@ -118,6 +131,9 @@ void update_map_probe(MapProbe &probe,uint8_t *rdram,recomp_context *ctx,int des
 extern "C" void dk64_vita_map_probe(uint8_t *rdram,recomp_context *ctx) {
     static MapProbe probe;
     update_map_probe(probe,rdram,ctx,DK64_VITA_PROBE_MAP);
+#if DK64_VITA_PROBE_CAMERA
+    if(probe.requested)probe.input=dk64_vita_camera_probe(rdram,ctx);
+#endif
     published_input.store(probe.input,std::memory_order_release);
 }
 

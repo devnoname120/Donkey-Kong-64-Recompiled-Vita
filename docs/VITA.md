@@ -38,6 +38,11 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   hard-float. Portable multiply tests compare 100 edge pairs and 100,000 random
   pairs against native 128-bit multiplication. Cached/uncached address-alias tests
   and save/backup-copy tests also pass.
+- Vita's floating-point word conversions now use the FPSCR-aware VFP instruction.
+  The native ARM control passes all 48 rounding cases, and the actual game's
+  Jungle Japes photograph matches all 20,480 source-derived sepia pixels. The
+  original photograph's deferred release and return to player movement also
+  execute. See [floating-point validation](VITA_FENV_VALIDATION.md).
 - A deterministic queue regression reproduces the graphics-task starvation caused
   by a continuously nonempty VI producer. A fair consumer with quota 2 delivers
   waiting tasks, including a second task after the same consumer has fallen back

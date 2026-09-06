@@ -101,6 +101,11 @@ target_include_directories(dk64_map_probe_checks PRIVATE
     "${repo}/lib/N64ModernRuntime/ultramodern/include"
     "${repo}/lib/N64ModernRuntime/thirdparty")
 add_test(NAME dk64_map_probe_checks COMMAND dk64_map_probe_checks)
+add_executable(dk64_camera_probe_checks ../vita/test_camera_probe.cpp)
+target_include_directories(dk64_camera_probe_checks PRIVATE
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include" "${repo}/lib/N64ModernRuntime/librecomp/include"
+    "${repo}/lib/N64ModernRuntime/ultramodern/include")
+add_test(NAME dk64_camera_probe_checks COMMAND dk64_camera_probe_checks)
 add_executable(dk64_audio_capture_checks ../vita/test_audio_capture.cpp)
 add_test(NAME dk64_audio_capture_checks COMMAND dk64_audio_capture_checks)
 add_executable(dk64_audio_queue_checks ../vita/test_audio_queue.cpp)
