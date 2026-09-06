@@ -269,7 +269,20 @@ for its scissor and stripe width, fixing noise outside a contracted view while
 preserving the game's RNG. Both failed targeted pixel regressions before their
 hooks and pass through the real Fast F3DEX2 interpreter and GLES renderer afterward.
 Command streams also match the compiled upstream replacements in 2048 fade and
-56 static cases. Underwater tint and sandstorm geometry remain under review.
+56 static cases.
+
+Underwater tint and sandstorm also use upstream's viewport rectangles. The
+original projected water quad tinted one extra row outside a contracted view;
+the replacement preserves opacity smoothing and water-state handling while
+removing the unused vertex allocation. Sandstorm now uses upstream's repeating
+screen-space texture mapping and preserves fractional overshoot when wrapping
+negative scroll offsets. Its existing fractional half-lag, color/opacity and
+texture acquisition/release remain. Both generated-entry pixel regressions
+failed before the hooks and pass with them through Fast F3DEX2 and GLES, including
+contracted viewports and batching off/on. Emitted commands, selected state and
+callback arguments also match compiled upstream in 576 water and 360 sandstorm
+cases. These controlled fixtures do not replace native gameplay or physical-Vita
+checks of the affected effects.
 
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression

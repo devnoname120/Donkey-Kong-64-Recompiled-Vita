@@ -67,6 +67,46 @@ func = "func_global_asm_807035C4"
 before_vram = 0x807036DC
 text = "ctx->r21 = dk64_vita_static_x0 << 12;"
 
+# Keep the original underwater eligibility, opacity smoothing and camera-state
+# updates. Replace only vertex allocation/construction and the quad submission
+# with upstream's exact viewport rectangle.
+[[patches.hook]]
+func = "func_global_asm_80701CA0"
+before_vram = 0x80701E68
+text = "{ do_sw(rdram, 0x6c, ctx->r29, ctx->r12); ctx->r2 = ctx->r17; ctx->r4 = ADD32(ctx->r17, 8); ctx->r9 = (int32_t)0xe7000000U; goto dk64_vita_water_begin_draw; }"
+[[patches.hook]]
+func = "func_global_asm_80701CA0"
+before_vram = 0x80701F18
+text = "dk64_vita_water_begin_draw:;"
+[[patches.hook]]
+func = "func_global_asm_80701CA0"
+before_vram = 0x807022A0
+text = "{ extern gpr dk64_vita_water_rect(uint8_t*, gpr, gpr); ctx->r17 = dk64_vita_water_rect(rdram, ctx->r17, ADD32(MEM_W(0, ctx->r20), ctx->r18)); goto dk64_vita_water_finish_draw; }"
+[[patches.hook]]
+func = "func_global_asm_80701CA0"
+before_vram = 0x807022D0
+text = "dk64_vita_water_finish_draw:;"
+
+# Preserve sandstorm texture ownership and fractional-lag calculations. The
+# viewport rectangle replaces the old tile-origin/vertex mapping; negative
+# scroll offsets wrap by adding 255 instead of losing their fractional overshoot.
+[[patches.hook]]
+func = "func_global_asm_8068D264"
+before_vram = 0x8068D6C0
+text = "{ extern gpr dk64_vita_sandstorm_rect(uint8_t*, gpr); ctx->r16 = dk64_vita_sandstorm_rect(rdram, ADD32(ctx->r16, 8)); goto dk64_vita_sandstorm_finish_draw; }"
+[[patches.hook]]
+func = "func_global_asm_8068D264"
+before_vram = 0x8068D7A0
+text = "dk64_vita_sandstorm_finish_draw:;"
+[[patches.hook]]
+func = "func_global_asm_8068D264"
+before_vram = 0x8068D888
+text = "ctx->f18.fl = ctx->f16.fl + 255.0f;"
+[[patches.hook]]
+func = "func_global_asm_8068D264"
+before_vram = 0x8068D8B0
+text = "ctx->f8.fl = ctx->f4.fl + 255.0f;"
+
 # Upstream removes the uncached corruption check inside the deferred-free
 # routine, not the routine itself. Supply the expected comparison value in t7
 # (nor t7,s0,zero), preserving the subsequent countdown, compaction and frees.

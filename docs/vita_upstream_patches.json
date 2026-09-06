@@ -727,20 +727,20 @@
       "function": "func_global_asm_80701CA0",
       "compiled": true,
       "purpose": "Replace the underwater-tint vertex quad with a primitive rectangle",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "An initial paired sample matches opacity state and primitive color. Original generated code allocates/frees 64 bytes for four vertices (not matrices), writes player bounds and submits two triangles; upstream emits a rectangle. Geometry/scissor behavior across player/viewport states still needs verification.",
-      "next_action": "Compare the original vertex path and upstream rectangle through the actual renderer, including viewport and underwater-state transitions, before deciding applicability."
+      "disposition": "equivalent",
+      "reason": "Vita emits the upstream primitive rectangle using each player's viewport. It skips the original 64-byte vertex allocation/construction and two-triangle submission while retaining eligibility, map exclusions, opacity smoothing and camera-state updates. The original projected quad tints an extra row outside a contracted viewport.",
+      "evidence": "The generated-entry Fast F3DEX2/GLES regression fails before the hooks and passes afterward across normal, contracted and two-player bounds with batching off/on. It checks every pixel, opacity state, caller registers and absence of unused allocation/free calls. An independent compiled-upstream comparison matches complete emitted command streams, selected mutable state and flag calls in 576 cases covering nine maps, water-state variants and zero/one/two/four players. Graphics fixtures use controlled state; the original contracted-view replay has 160 incorrectly tinted pixels.",
+      "next_action": "Validate underwater entry/exit, Galleon exclusions and split-screen appearance in native gameplay and on physical Vita; command and controlled pixel checks do not establish all scene interactions."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8068D264",
       "compiled": true,
       "purpose": "Replace the sandstorm textured quad with a screen-space textured rectangle",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Original generated entry already converts the unsigned lag through double half-lag to float at 0x8068D2BC..0x8068D2D0; fractional lag is not missing. An initial paired Aztec sample matches texture acquisition/release and scroll updates (lag 3 changes offsets 100/200 to 97/179). Both use the same one-cycle MODULATEIA_PRIM mode; original vertex/tile-origin mapping versus rectangle mapping remains to be checked.",
-      "next_action": "Compare original quad coverage, texel scale/origin and viewport changes with upstream before retaining or replacing the draw path; validate actual sandstorm pixels."
+      "disposition": "equivalent",
+      "reason": "Vita carries the upstream viewport texture rectangle, screen-space texel mapping and negative-scroll wrap that adds 255 while preserving fractional overshoot. The original texture acquisition/release, one-cycle MODULATEIA_PRIM mode, color/opacity and already-fractional half-lag calculation remain.",
+      "evidence": "The generated-entry Fast F3DEX2/GLES regression fails before the hooks and passes afterward. Its 64 cases compare every pixel against a patterned IA8 texture, viewport coverage, phase updates and texture ownership across both map-color paths, four lags, wrap boundaries and batching modes. Complete commands, scroll state and texture callback arguments also match compiled upstream in 360 cases including lag 64, negative phases, three cooldowns and one-pixel bounds. The fixture models texture retrieval/release and supplies controlled graphics state.",
+      "next_action": "Validate the sandstorm in native gameplay and on physical Vita, including camera/viewport changes and scene blending; the focused synthetic-texture checks do not establish every visual interaction."
     },
     {
       "source": "patches/patches_main.c",
