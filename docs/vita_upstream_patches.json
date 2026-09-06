@@ -136,11 +136,11 @@
       "source": "patches/patches_draw.c",
       "function": "func_global_asm_80630DCC",
       "compiled": true,
-      "purpose": "Draw distance and asset/decompression handling",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Apply a desktop minimum draw distance to actor visibility and opacity",
+      "disposition": "retained_original",
+      "reason": "The added actorDrawFilter/recomp_filter_draw calls raise the visibility and distance-based opacity thresholds according to the desktop setting. Vita retains each actor's original authored distance and the original culling, lighting, opacity and model submission paths.",
+      "evidence": "Compared the original 536 instructions and compiled upstream function with its real filter helpers. With the desktop floor set to zero, all 432 cases match actor properties/opacity, ordinary display-list words and consumed helper values exactly across actor flags/types, camera distances, multiplayer, frame bank, bone sampling and cull results. Enabling a 20000-unit floor changes the expected positive-control actor case. Culling, pose/lighting, bone and model-draw helpers are modeled.",
+      "next_action": "Validate camera-distance transitions in representative maps; revisit the additional filters only when exposing a wider draw-distance option."
     },
     {
       "source": "patches/patches_draw.c",
@@ -860,27 +860,27 @@
       "disposition": "retained_original",
       "reason": "The original code already rejects a 17th light. Vita retains that original array and matching bound rather than importing the expanded desktop storage.",
       "evidence": "Original C and generated instructions at 0x8065A714/0x8065A71C both compare the count with 0x10; the patch uses LIGHT_LIMIT 0x30 with its own array.",
-      "next_action": "Retain the matching original storage/bound; audit the related processing changes before expanding capacity."
+      "next_action": "Keep the original producer, table and consumer limits together; validate dense light/shadow scenes on physical Vita before changing capacity."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8065A884",
       "compiled": true,
-      "purpose": "Expanded light processing and zero-distance guards",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Process actor recoloring and shadows using the desktop expanded light array",
+      "disposition": "retained_original",
+      "reason": "The original already guards zero direction/distance and shadow denominators. The replacement switches from the original 16-entry light table to the desktop 48-entry table; the per-pass 12-light cap, player-count restriction, actor exclusions and shadow fallback remain. Vita keeps its original producer/table/consumers together.",
+      "evidence": "Compared all 1159 original instructions and the upstream body, then executed both generated routines against their respective constants/light tables. All 384 paired cases match helper calls/values exactly, including point/directional lights, zero-length directions, coincident positions, horizontal/vertical shadow cases, actor exclusion, three-player restriction, selective lights and counts 0/1/12/16. Light applicability, recoloring, heading and shadow draw helpers are modeled; no rendered lighting claim.",
+      "next_action": "Validate representative light/shadow scenes on physical Vita; change the producer and both table consumers together if expanding the light budget."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8065BAA0",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Select and pack up to 12 lights from the desktop expanded light array",
+      "disposition": "retained_original",
+      "reason": "The original already substitutes 0.1 for zero direction length and zero radius before computing light coefficients. Upstream redirects its source to the expanded light table. Vita retains the original 16-entry table with the same 12-record output limit and original coefficient/flag construction.",
+      "evidence": "Original guards verified at 0x8065BD08..0x8065BD24 and 0x8065BD78..0x8065BD90. In 384 paired original/compiled-upstream cases, packed records, mutated radii, selected count, flag and helper values match exactly. Used coefficients/colors remain finite for the tested degenerate inputs; output stays within 12 records. Applicability/finalization helpers are modeled.",
+      "next_action": "Retain these guards and the 12-record output bound if changing input capacity; physical scene shading remains separate validation."
     },
     {
       "source": "patches/patches_matrix.c",

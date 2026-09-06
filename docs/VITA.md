@@ -243,6 +243,15 @@ skybox functions found matching blend/textured-sky calculations at 4:3 after
 desktop matrix tags were removed. Helpers are modeled in those comparisons;
 actual Galleon, race and bonus sky pixels still need gameplay validation.
 
+Lighting keeps the original 16-entry input table and 12-record processed-light
+limit. Its zero-direction, zero-radius and shadow-denominator guards already
+exist in the original code. Differential checks against the compiled upstream
+replacements matched all 768 cases, including degenerate inputs and selection
+limits. The actor draw routine also matched 432 cases with the desktop distance
+floor disabled; enabling that floor changed the expected control case. Vita
+retains authored actor distances. These comparisons model helper functions and
+do not establish complete rendered lighting or distant-model appearance.
+
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
 fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,
