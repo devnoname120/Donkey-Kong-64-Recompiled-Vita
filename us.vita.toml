@@ -92,6 +92,52 @@ func = "func_global_asm_806FFF88"
 before_vram = 0x806FFFF8
 text = "{ extern void dk64_vita_sync_framebuffer(uint8_t*, uint32_t, uint32_t, uint32_t); dk64_vita_sync_framebuffer(rdram, (uint32_t)ctx->r8, MEM_HU(0, 0xffffffff80744490ULL), MEM_HU(0, 0xffffffff80744494ULL)); }"
 
+# patches_framebuffer.c keeps half the sampled lag as f32. Capture the original
+# mul.s result before trunc.w.s, then correct its eight consumers. Keep the
+# original CPU framebuffer ownership, blur, drawing and deferred-free paths.
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629348
+text = "const float dk64_vita_effect_half_lag = ctx->f16.fl;"
+
+# Integer progress is truncated after the addition/subtraction, as upstream's
+# compound assignment does: 100 - (1.5 * 5) is 92, not 93.
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629730
+text = "ctx->r11 = (int32_t)((float)(int32_t)ctx->r9 - dk64_vita_effect_half_lag * 5.0f);"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x806298F8
+text = "ctx->r25 = (int32_t)((float)(int32_t)ctx->r2 + dk64_vita_effect_half_lag * 10.0f);"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629A94
+text = "ctx->r14 = (int32_t)((float)(int32_t)ctx->r2 - dk64_vita_effect_half_lag * 10.0f);"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629D48
+text = "ctx->r10 = (int32_t)((float)(int32_t)ctx->r9 + dk64_vita_effect_half_lag * 10.0f);"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629D50
+text = "ctx->r11 = (int32_t)((float)(int32_t)ctx->r3 - dk64_vita_effect_half_lag * 10.0f);"
+
+# Iris, diagonal and clock wipes already use double arithmetic for their
+# updates. Replace only the converted integer factor before each multiply.
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629DC0
+text = "ctx->f6.d = (double)dk64_vita_effect_half_lag;"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x80629EE8
+text = "ctx->f10.d = (double)dk64_vita_effect_half_lag;"
+[[patches.hook]]
+func = "func_global_asm_80629300"
+before_vram = 0x8062A010
+text = "ctx->f8.d = (double)dk64_vita_effect_half_lag;"
+
 [[patches.hook]]
 func = "func_dk64_boot_800005A8"
 text = """{

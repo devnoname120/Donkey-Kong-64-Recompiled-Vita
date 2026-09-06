@@ -256,11 +256,11 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_80629300",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering; func_global_asm_8061134C(D_global_asm_807F5D80);  // @recomp: Nothing is being stored here anymore, so we can get rid of this free",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_2DE90.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Preserve fractional half-lag for framebuffer transition timing; adapt snapshots and effect rendering",
+      "disposition": "partial",
+      "reason": "Vita hooks retain the original mul.s half-lag before integer truncation and carry it to all eight progress consumers. Integer fades/wipes truncate after arithmetic; radial/clock effects retain their double updates. The original 4:3 CPU framebuffer allocation, alpha, pause blur and two-frame deferred release remain; desktop stored_framebuffer, widescreen and interpolation commands are not imported.",
+      "evidence": "Compared reference C, upstream replacement and original generated instructions at 0x80629348, 0x80629730, 0x806298F8, 0x80629A94, 0x80629D48, 0x80629D50, 0x80629DC0, 0x80629EE8 and 0x8062A010. dk64_framebuffer_effect_checks executes the generated routine: odd/even lags, integer truncation after subtraction, sampled lag, all seven transition boundaries, deferred release, pause exit, one-time matrix initialization and guest register/stack preservation. It failed before the hooks and passes with them. Graphics callbacks are stubbed, so this does not validate GPU pixels.",
+      "next_action": "Validate affected fades/wipes and pause snapshots on physical Vita, including original blur and speedhack readback behavior; native Vita3K GPU-owned readbacks remain unresolved."
     },
     {
       "source": "patches/patches_framebuffer.c",
