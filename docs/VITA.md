@@ -296,8 +296,13 @@ The host checks include caller-register/stack preservation, save
 eligibility, actor selection/compaction, actual generated deferred-free and photo
 capture routines, framebuffer effect completion/cleanup, and minigame timing
 boundaries. The removed-check, photo and fractional-transition tests failed
-before their hooks were added. Photo testing isolates the game's
-color conversion. Full affected-save, repeated Owl Race, fairy-photo and
+before their hooks were added. The original photo layout check isolates color
+conversion; a separate full-pipeline GLES check now runs the real converter and
+native framebuffer bridge. Eight GPU-rendered photographs match exactly across
+both buffers/aliases, first reads, later redraws and batching modes, and all
+65,536 RGBA16 inputs match the original sepia curve. See
+[the photograph pipeline evidence](VITA_READBACK_VALIDATION.md#complete-host-photograph-byte-pipeline).
+Full affected-save, repeated Owl Race, fairy-photo and
 minigame playthroughs remain required; these focused checks do not replace them.
 A subsequent 85-second host GLES run reached Training Grounds, displayed the
 original blurred pause snapshot, resumed and continued movement/audio. The quiet

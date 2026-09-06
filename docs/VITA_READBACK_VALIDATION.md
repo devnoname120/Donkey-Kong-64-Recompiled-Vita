@@ -129,6 +129,51 @@ quiet hardware VPK retain their hashes. Under the quiet build's compiler flags,
 the renderer's preprocessed source is byte-identical before and after adding the
 probe-only recording block. No hardware game build was regenerated or deployed.
 
+## Complete host photograph byte pipeline
+
+`dk64_photo_pipeline_checks` extends the earlier crop/layout check through the
+actual generated photograph (`806FFF88`), tile-copy (`806FFEAC`) and sepia
+conversion (`806FFC04`) routines. It calls the native
+`dk64_vita_sync_framebuffer` bridge and the shared GL sink's real readback path.
+The bridge's renderer dispatch is synchronous in this fixture; runtime graphics
+queue ordering is covered separately and is not re-tested here.
+
+The test draws a 320x240 pattern on the GPU while guest RAM still contains older
+data. Each photograph makes exactly one readback and one original 0xA000-byte
+allocation. It checks every returned RGBA16 source pixel and every pixel of the
+160x128 center crop, including the ten 32x64 tiles, channel packing, alpha,
+sepia values, guest stack and allocation boundaries. Two source framebuffers use
+KSEG0 and KSEG1 aliases; each is captured on its first use and after a changed
+draw, with batching both disabled and enabled. All eight photographs match.
+There is no preliminary read which could make a first-use failure disappear.
+
+The original converter depends only on the sum of the three five-bit color
+channels and the alpha bit. The US overlay constants at `8075DE80`/`8075DE88`
+are 45.0 and 93.0, verified at decompressed ROM offsets `2162B80`/`2162B88`.
+The independent integer reference is:
+
+```text
+s = red5 + green5 + blue5
+red_out   = 3 + floor(28*s / 93)
+green_out = 3 + floor(19*s / 93)
+blue_out  = s < 48 ? 0 : floor(18*(s-48) / 45)
+alpha_out = alpha_in
+```
+
+All 65,536 RGBA16 values agree with the generated converter in the game's
+paired-register floating-point mode. This check runs for both batching cases,
+giving 131,072 conversions plus 163,840 photograph output-pixel comparisons.
+Even input `0000` becomes `18C0` (with alpha still zero), so nonzero photograph
+storage alone would not establish a successful GPU capture.
+The ASan/GLES test passed with Mesa softpipe and diagnostics disabled. Its local
+log and input hashes are retained in `build/photo-pipeline-validation/`.
+
+This establishes the complete pixel path on the host GL implementation. It does
+not validate camera activation, fairy recognition, photograph actor lifetime,
+Vita-side floating-point execution or hardware readback. In particular, it does
+not change or resolve the first-read failure observed in Vita3K. No game,
+renderer, emulator or physical-device executable was changed for this check.
+
 ## Repeating the diagnostic
 
 Build `rt64_fast_smoke.vpk-vpk` using the normal readback options above and the

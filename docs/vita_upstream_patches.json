@@ -399,8 +399,8 @@
       "purpose": "Read the rendered framebuffer for a fairy photograph",
       "disposition": "partial",
       "reason": "A hook synchronizes the selected framebuffer before the original CPU photo loop. The original allocation and texture-only fallback remain; desktop static photo storage is not imported.",
-      "evidence": "dk64_photo_capture_checks uses the actual generated capture/tile loops. It failed before the hook and passes for both framebuffer selections, 160x128 center tiles, allocation ownership, fallback and guest stack.",
-      "next_action": "Validate an actual fairy photograph in gameplay and on physical Vita; the fixture isolates color conversion and does not resolve Vita3K CPU readback limitations."
+      "evidence": "dk64_photo_capture_checks validates the generated source selection/crop, allocation, fallback and guest stack. dk64_photo_pipeline_checks also executes the actual converter and native bridge against GPU-rendered GLES images: all 8 photographs match across both framebuffer aliases, first reads, redraws and batching modes; every RGBA16 color matches the sepia curve. See VITA_READBACK_VALIDATION.md.",
+      "next_action": "Validate camera activation, fairy recognition, photograph lifetime and physical-Vita pixels in gameplay. Host pixel-pipeline checks do not resolve Vita3K first-read failures or establish Vita-side execution."
     },
     {
       "source": "patches/patches_heap.c",
