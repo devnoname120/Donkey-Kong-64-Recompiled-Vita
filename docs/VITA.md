@@ -323,6 +323,30 @@ fails with the old helper and passes with the runtime implementation, checking
 pending versus current modes, the native dummy mode, byte order and caller
 state. This does not establish interlaced scanout support.
 
+The remaining `805FB944` video-setup differences are now accounted for by 73728
+paired runs of the Vita-generated routine and compiled upstream replacement.
+The comparison covers both map branches, six cutscene states, all combinations
+of the eight mode-selection flag bits, all three TV types, startup flags and
+argument-byte boundaries. Helper-call sequences and arguments, VI mode-table
+pointers, blanking/features and startup flags match. Restoring the original ROM
+instruction at `805FB980` verifies that the existing Vita patch changes the
+Nintendo-logo width from 640 to 320 pixels. OS and layout helpers are modeled;
+these checks do not establish final multiplayer or minigame pixels.
+
+Vita retains original 4:3 overscan/endpoints and the four letterbox-bound writes.
+Upstream moves those writes into its `805FBFF4` per-frame loop, where the desktop
+border setting supplies 0 or 40 pixels. The drawing and closing-viewport routines
+still consume those fields; removing the initializer writes without that new
+provider leaves stale values. A follow-up executes the actual original `80703850`
+consumer through all 256 closing amounts in both modes: 243 cases differ when
+only upstream setup is imported, even after normalizing the overscan difference.
+For example, entering ordinary mode after full-screen mode should produce
+`[10,40,309,199]`, but omitted letterbox updates leave `[10,30,309,209]` at closing
+amount zero. All 256 non-letterboxed cases match. These AddressSanitizer checks
+support keeping initialization and its consumers together; they do not add the
+desktop border configuration to the Vita port. Local evidence is in
+`build/upstream-viewport-review/`.
+
 Pause-page navigation also retains the original switcher. Its page wrap,
 alternating buffers, slide clamp, completion flags and sound/redraw arguments
 match compiled upstream in 864 paired boundary cases. The desktop addition is
