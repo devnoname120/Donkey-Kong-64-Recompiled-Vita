@@ -198,7 +198,7 @@ but the short logo window and physical-device audibility still need confirmation
 The camera and cutscene-actor routines retain their original game behavior.
 Comparisons with compiled upstream cover 493 camera cases and 604 actor cases,
 checking the first 8 MiB of guest state and gameplay-helper arguments. The game
-RNG and camera-bank advancement execute their generated code; physics, animation,
+RNG, trig and camera-bank advancement execute their generated code; physics, animation,
 tracking, clock and other helpers are modeled. The differences are confined in
 these cases to desktop interpolation resets: camera timer values 2/3 at segment
 initialization/completion, and actor lockdown value 2 after a scripted coordinate
@@ -338,7 +338,11 @@ cases: its original horizontal digit windows differ from upstream's wider
 viewport bounds, while vertical clipping, state updates and text arguments
 agree. A further 288 cases retain the original bonus-wrapper field selection
 and header/counter arguments, accounting for the added desktop alignment flags.
-These comparisons model font rendering and selected math/gameplay helpers.
+These comparisons model font rendering and selected gameplay helpers. The
+camera, counter, HUD-number, weather and skybox comparisons were refreshed using
+the game's generated trig routines; HUD numbers also use its generated rounding
+routine. The decisions remain unchanged. This corrects an earlier swapped
+sine/cosine model in the local comparison fixtures; production code was unaffected.
 
 DKTV, sniper scopes and weather also keep their original viewport policy.
 The 240 DKTV comparisons isolate the desktop full-screen viewport and title
@@ -348,10 +352,28 @@ accounting for upstream's extra full-screen scissor. At width 426, a positive
 control moves exactly four outer-mask image arguments. Weather matches 192
 cases at width 320 after removing extended alignment commands, including full
 128-particle lists, suppression and deletion. A wider-view control changes only
-matrix X translation. Generated matrix functions run in these fixtures, while
+matrix X translation. Generated matrix and trig functions run in these fixtures, while
 image drawing, texture selection, culling and particle-update helpers are
 modeled. Actual HUD glyphs, scope masks and weather still need native gameplay
 and physical-Vita validation.
+
+Race HUDs retain their original image-quad sampling and resource ownership at
+4:3. Thirty paired GLES replays execute the original image, matrix, vertex and
+trig routines alongside upstream's rectangle path, using solid/patterned inputs
+and the actual US-ROM HUD textures. Both render a connected minimap with matching
+map/background bounds. The sampling differs: rectangles truncate dot positions
+to integer pixels, and gate icons have a small horizontal placement difference.
+These changes belong to the desktop rectangle/alignment path; no pixel-equivalence
+claim is made for retaining the original renderer. The replays use controlled
+graphics state and an original 4:3 scissor, with extended alignment excluded.
+
+Race logic comparisons cover 288 minimap-selection cases, 12 missed-gate cases
+and 1440 lap/rank/status cases. Text, colors, asset IDs and persistent inputs
+agree; the original image allocations retain paired deferred releases, while
+upstream rectangles avoid them. Lap text keeps its string-sized allocation and
+deferred release instead of the desktop replacement's 64-byte stack buffer.
+Font/string callbacks are modeled, and full native/physical race validation
+remains open.
 
 Portal traversal, chunk scissors and distant-screen visibility also remain
 paired with the original 4:3 projection. The original traversal can mark a
