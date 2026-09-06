@@ -48,7 +48,7 @@ if(DK64_VITA_GAME)
         target_compile_definitions(ultramodern PRIVATE RECOMP_SCHEDULER_DIAGNOSTICS)
         target_compile_options(dk64_recompiled_vita PRIVATE -finstrument-functions)
     endif()
-    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp
+    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp map_probe.cpp
         register_overlays.cpp
         ${CMAKE_SOURCE_DIR}/src/game/rom_decompression.cpp
         ${CMAKE_SOURCE_DIR}/rsp/n_aspMain.cpp)
@@ -56,10 +56,21 @@ if(DK64_VITA_GAME)
     option(DK64_VITA_TRACE_RENDERER "Capture startup and intro draws without function instrumentation" OFF)
     option(DK64_VITA_SCRIPTED_INPUT "Run the Adventure integration probe with separate saves" OFF)
     option(DK64_VITA_SCRIPTED_PAUSE "Exercise pause and resume during the Adventure probe" OFF)
+    set(DK64_VITA_PROBE_MAP "0" CACHE STRING "Request a map after the scripted probe reaches Adventure (0 disables)")
+    if(NOT DK64_VITA_PROBE_MAP MATCHES "^(0|[1-9][0-9]*)$" OR DK64_VITA_PROBE_MAP GREATER 215)
+        message(FATAL_ERROR "DK64_VITA_PROBE_MAP must be an integer from 0 through 215")
+    endif()
+    if(DK64_VITA_PROBE_MAP AND NOT DK64_VITA_SCRIPTED_INPUT)
+        message(FATAL_ERROR "Map entry probes require DK64_VITA_SCRIPTED_INPUT=ON and the separate probe title")
+    endif()
     if(NOT DK64_VITA_DIAGNOSTICS AND (DK64_VITA_PROFILE_FUNCTIONS OR DK64_VITA_TRACE_RENDERER
         OR DK64_VITA_SCRIPTED_INPUT OR DK64_VITA_SCRIPTED_PAUSE OR RT64_FAST_VALIDATE_UPLOADS))
         message(FATAL_ERROR "Diagnostic instrumentation and scripted inputs require DK64_VITA_DIAGNOSTICS=ON")
     endif()
+    # Only the presence of the hook affects generated C; changing its map does
+    # not require recompiling every ROM function.
+    target_compile_definitions(dk64_recompiled_vita PRIVATE DK64_VITA_MAP_PROBE_ENABLED=$<BOOL:${DK64_VITA_PROBE_MAP}>)
+    set_property(SOURCE map_probe.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_PROBE_MAP=${DK64_VITA_PROBE_MAP})
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_INPUT=$<BOOL:${DK64_VITA_SCRIPTED_INPUT}>)
     set_property(SOURCE renderer_context.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_INPUT=$<BOOL:${DK64_VITA_SCRIPTED_INPUT}>)
     set_property(SOURCE main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_VITA_SCRIPTED_PAUSE=$<BOOL:${DK64_VITA_SCRIPTED_PAUSE}>)

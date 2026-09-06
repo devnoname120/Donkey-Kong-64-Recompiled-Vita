@@ -94,6 +94,13 @@ add_test(NAME dk64_vi_mode_checks COMMAND dk64_vi_mode_checks)
 add_executable(dk64_gameplay_fix_checks ../vita/gameplay_fixes.cpp ../vita/test_gameplay_fixes.cpp)
 target_include_directories(dk64_gameplay_fix_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_gameplay_fix_checks COMMAND dk64_gameplay_fix_checks)
+add_executable(dk64_map_probe_checks ../vita/test_map_probe.cpp)
+target_include_directories(dk64_map_probe_checks PRIVATE
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include"
+    "${repo}/lib/N64ModernRuntime/librecomp/include"
+    "${repo}/lib/N64ModernRuntime/ultramodern/include"
+    "${repo}/lib/N64ModernRuntime/thirdparty")
+add_test(NAME dk64_map_probe_checks COMMAND dk64_map_probe_checks)
 # Exercise the actual generated routine, including its TOML instruction patch.
 add_executable(dk64_deferred_free_checks ../vita/test_deferred_free.cpp)
 add_generated_check_function(dk64_deferred_free_checks func_global_asm_80611730)

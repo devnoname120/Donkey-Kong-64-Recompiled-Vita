@@ -241,7 +241,13 @@ before_vram = 0x8060B140
 # Preserve the desktop patch's minimum lag and cooperative waiting.
 [[patches.hook]]
 func = "func_global_asm_80600674"
-text = "{ extern void dk64_vita_calculate_lag(uint8_t*); dk64_vita_calculate_lag(rdram); return; }"
+text = """
+{ extern void dk64_vita_calculate_lag(uint8_t*); dk64_vita_calculate_lag(rdram);
+#if DK64_VITA_MAP_PROBE_ENABLED
+  extern void dk64_vita_map_probe(uint8_t*, recomp_context*); dk64_vita_map_probe(rdram, ctx);
+#endif
+  return; }
+"""
 
 # Match timing_fixes.c: only fast loads bypass the frame deadline.
 [[patches.hook]]
