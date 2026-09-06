@@ -716,11 +716,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80655DD0",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Use viewport scissors during desktop chunk drawing",
+      "disposition": "retained_original",
+      "reason": "Upstream determineChunkFix uses the full screen width and the player's vertical bounds in single-player, or the player's full viewport in multiplayer. The original uses each chunk's clipping rectangle. Both supply chunk bounds to CPU culling and restore viewport bounds afterward. Vita retains the original scissors and visibility pipeline at 4:3.",
+      "evidence": "Compared all 882 original instructions with the compiled upstream routine/helper. Across 96 paired cases varying loaded chunks, render passes, global draw flags, player count and alternate-list selection, ordinary display-list words and draw-helper arguments match after the known per-chunk scissor differences are accounted for. Original and desktop scissor values and restored CPU bounds were checked explicitly. Geometry drawing helpers are modeled.",
+      "next_action": "Validate narrow portals, multiplayer views and screen squish effects on Vita; change traversal, culling and scissor policy together if widening the projection."
     },
     {
       "source": "patches/patches_main.c",
@@ -770,7 +770,7 @@
       "disposition": "retained_original",
       "reason": "The replacement returns true unconditionally. Vita keeps the original chunk bounds because it has not widened the game projection.",
       "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
-      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
+      "next_action": "Validate camera edges and portals; keep the original clipper, chunk bounds, traversal and distant-object gate together unless widening the projection."
     },
     {
       "source": "patches/patches_main.c",
@@ -820,27 +820,27 @@
       "disposition": "retained_original",
       "reason": "Upstream removes X viewport clipping passes. The current renderer does not expand the game projection, so the original clipper remains paired with it.",
       "evidence": "Patch/reference or generated-source inspection plus the fixed 4:3 presentation in rt64_fast_vitagl.cpp. No dedicated later-map visibility test is claimed.",
-      "next_action": "Validate representative camera edges and model-distance changes; reconsider if widescreen or interpolation is added."
+      "next_action": "Validate camera edges and portals; keep the original clipper, chunk bounds, traversal and distant-object gate together unless widening the projection."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80656F14",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior; _printf(\"--------------\\n\");",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Broaden portal traversal and remove the original distant-screen visibility path",
+      "disposition": "retained_original",
+      "reason": "Desktop traversal carries parent bounds instead of intersecting projected portal rectangles, drops a linked-geometry intersection check, and removes the separate billboard-visibility marking path. Its distant-screen replacement then ignores that visibility flag. Vita retains the original traversal, rectangle clipping and billboard path as one coherent implementation.",
+      "evidence": "Original caller 80653B80 resets visibility, marks the current chunk, traverses portals, then updates distant screens. Compared original 361-instruction traversal and compiled upstream in 192 paired constructed cases with nested windows inside the global viewport. Real generated rectangle-union/intersection and descriptor-lookup helpers verify visibility flags, recursion, adjoining-chunk loading and linked geometry. An incomplete pair (desktop traversal plus original distant processing) suppresses the billboard in eight cases where the original pair enables it. Geometric predicates are modeled.",
+      "next_action": "Validate real doorway traversal and distant objects; preserve the separate billboard path while its consumer remains portal-gated."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8066308C",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Update distant-screen records independently of portal visibility",
+      "disposition": "retained_original",
+      "reason": "The desktop patch makes distance, opacity and angle updates unconditional. Vita retains the original gate indexed by the descriptor's portal entry; its original traversal includes the special path that marks visible distant screens even when the adjoining chunk is not loaded.",
+      "evidence": "Compared all 262 original instructions with the upstream body. Paired traversal/consumer cases confirm enabled/disabled behavior and preservation of cached parameters while hidden. Another 72 enabled numeric pairs match full records across near/intermediate/far opacity cases, positive/negative elevation and heading-wrap samples. Original 806634A4 consumes only records with the active byte set. Geometric and heading/elevation helpers are modeled; this is not a real scene render.",
+      "next_action": "Validate distant billboards through portals and behind scene geometry on Vita; pair any gate removal with the traversal policy change."
     },
     {
       "source": "patches/patches_main.c",

@@ -252,6 +252,16 @@ floor disabled; enabling that floor changed the expected control case. Vita
 retains authored actor distances. These comparisons model helper functions and
 do not establish complete rendered lighting or distant-model appearance.
 
+Portal traversal, chunk scissors and distant-screen visibility also remain
+paired with the original 4:3 projection. The original traversal can mark a
+billboard visible without loading the adjoining chunk. Desktop patches remove
+that path and instead update all distant screens; mixing only half of that
+change suppresses billboards in the constructed comparison. The review covers
+192 traversal pairs using the real rectangle helpers, 96 world-draw/scissor
+pairs and 72 enabled distant-record calculations. Geometric predicates and
+geometry-draw helpers are modeled; real portals, multiplayer views and distant
+objects still require gameplay validation.
+
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
 fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,
