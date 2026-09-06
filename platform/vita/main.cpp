@@ -18,7 +18,12 @@
 #include "librecomp/overlays.hpp"
 #include "donk_game.h"
 #include "ovl_patches.hpp"
-#if DK64_VITA_SCRIPTED_INPUT
+#include "audio_queue.h"
+#if DK64_VITA_AUDIO_CAPTURE
+#include "audio_capture.h"
+#include <psp2/audioout.h>
+static constexpr char data_directory[]="ux0:data/dk64recompiled-audio";
+#elif DK64_VITA_SCRIPTED_INPUT
 #include "adventure_probe.h"
 #if DK64_VITA_MAP_PROBE_ENABLED
 extern "C" bool dk64_vita_map_probe_input(uint16_t *,float *,float *);
@@ -53,15 +58,27 @@ std::unique_ptr<ultramodern::renderer::RendererContext> create_vita_renderer(
 
 namespace {
     SDL_AudioDeviceID audio_device=0;
+    uint32_t audio_rate=0;
+    size_t audio_device_frames=0;
     std::mutex audio_mutex;
+#if DK64_VITA_AUDIO_CAPTURE
+    AudioCapture audio_capture;
+    AudioCapture device_capture;
+    std::mutex device_capture_mutex;
+    int capture_port=-1,capture_frames=0;
+#endif
     void message(const char *text) { vita_log("%s",text); }
     void set_frequency(uint32_t hz) {
         std::lock_guard lock(audio_mutex);
+#if DK64_VITA_AUDIO_CAPTURE
+        audio_capture.set_rate(hz);
+#endif
         if(audio_device) SDL_CloseAudioDevice(audio_device);
         SDL_AudioSpec wanted{},actual{};
         wanted.freq=hz; wanted.format=AUDIO_S16SYS; wanted.channels=2; wanted.samples=1024;
         audio_device=SDL_OpenAudioDevice(nullptr,0,&wanted,&actual,0);
         if(!audio_device) throw std::runtime_error(std::string("SDL audio: ")+SDL_GetError());
+        audio_rate=actual.freq;audio_device_frames=actual.samples;
         SDL_PauseAudioDevice(audio_device,0);
         vita_log("Audio device opened: %d Hz, %u channels",actual.freq,unsigned(actual.channels));
     }
@@ -71,6 +88,9 @@ namespace {
         std::vector<int16_t> swapped(count);
         // Word-swapped RDRAM reverses the two stereo samples in each word.
         for(size_t i=0;i+1<count;i+=2) { swapped[i]=samples[i+1]; swapped[i+1]=samples[i]; }
+#if DK64_VITA_AUDIO_CAPTURE
+        audio_capture.append(swapped.data(),swapped.size(),sceKernelGetProcessTimeWide());
+#endif
         if(SDL_QueueAudio(audio_device,swapped.data(),swapped.size()*sizeof(int16_t))<0)
             throw std::runtime_error(SDL_GetError());
 #if DK64_VITA_DIAGNOSTICS
@@ -83,7 +103,11 @@ namespace {
     }
     size_t audio_remaining() {
         std::lock_guard lock(audio_mutex);
-        return audio_device ? SDL_GetQueuedAudioSize(audio_device)/(2*sizeof(int16_t)) : 0;
+        const size_t frames=audio_device ? SDL_GetQueuedAudioSize(audio_device)/(2*sizeof(int16_t)) : 0;
+#if DK64_VITA_AUDIO_CAPTURE
+        audio_capture.observe_queue(frames,sceKernelGetProcessTimeWide());
+#endif
+        return vita_audio_frames_remaining(frames,audio_rate,audio_device_frames);
     }
     bool input(int controller,uint16_t *buttons,float *x,float *y) {
         if(controller!=0) return false;
@@ -129,8 +153,79 @@ namespace {
     }
     RspUcodeFunc *rsp_ucode(const OSTask *task) { return task->t.type==M_AUDTASK?&n_aspMain:nullptr; }
     void poll() {}
-    void update(void *) { SDL_PumpEvents(); vita_log_guest_profile(); }
+#if DK64_VITA_AUDIO_CAPTURE
+    void dump_audio_capture(const char *name,const AudioCaptureData &captured) {
+        if(captured.samples.empty()) return;
+        // The capture is complete and immutable before this file I/O begins.
+        const std::string prefix=std::string(data_directory)+"/"+name;
+        FILE *pcm=std::fopen((prefix+".s16le").c_str(),"wb");
+        if(!pcm) throw std::runtime_error("Could not create audio capture");
+        const size_t written=std::fwrite(captured.samples.data(),sizeof(int16_t),captured.samples.size(),pcm);
+        std::fclose(pcm);
+        if(written!=captured.samples.size()) throw std::runtime_error("Audio capture write was incomplete");
+        FILE *index=std::fopen((prefix+".csv").c_str(),"w");
+        if(!index) throw std::runtime_error("Could not create audio capture index");
+        std::fprintf(index,"rate,%u\nreason,%s\ntime_us,first_frame,frames\n",captured.rate,captured.reason);
+        for(const auto &chunk:captured.chunks)
+            std::fprintf(index,"%llu,%u,%u\n",static_cast<unsigned long long>(chunk.time_us),chunk.first_frame,chunk.frames);
+        std::fclose(index);
+        if(!captured.queries.empty()) {
+            FILE *queries=std::fopen((prefix+"-queue.csv").c_str(),"w");
+            if(!queries) throw std::runtime_error("Could not create audio queue capture");
+            std::fprintf(queries,"time_us,frames\n");
+            for(const auto &query:captured.queries)
+                std::fprintf(queries,"%llu,%u\n",static_cast<unsigned long long>(query.time_us),query.frames);
+            std::fclose(queries);
+        }
+        vita_log("Audio capture %s completed: %u Hz, %u stereo frames, %u chunks",
+            name,captured.rate,unsigned(captured.samples.size()/2),unsigned(captured.chunks.size()));
+    }
+#endif
+    void update(void *) {
+        SDL_PumpEvents();vita_log_guest_profile();
+#if DK64_VITA_AUDIO_CAPTURE
+        static uint64_t next_check=0;
+        const uint64_t now=sceKernelGetProcessTimeWide();
+        if(now<next_check) return;
+        next_check=now+1000000;
+        AudioCaptureData producer,device;
+        {
+            std::lock_guard lock(audio_mutex);
+            if(audio_capture.ready(now)) producer=audio_capture.take();
+        }
+        {
+            std::lock_guard lock(device_capture_mutex);
+            if(device_capture.ready(now)) device=device_capture.take();
+        }
+        dump_audio_capture("audio-capture",producer);
+        dump_audio_capture("device-audio-capture",device);
+#endif
+    }
 }
+
+#if DK64_VITA_AUDIO_CAPTURE
+extern "C" int __real_sceAudioOutOpenPort(SceAudioOutPortType,int,int,SceAudioOutMode);
+extern "C" int __real_sceAudioOutOutput(int,const void *);
+extern "C" int __wrap_sceAudioOutOpenPort(SceAudioOutPortType type,int frames,int rate,SceAudioOutMode mode) {
+    const int port=__real_sceAudioOutOpenPort(type,frames,rate,mode);
+    // The initial dummy 48 kHz device is a main port. Capture the game's BGM
+    // stereo port, retaining its actual rate and frame count without changing it.
+    if(port>=0 && type==SCE_AUDIO_OUT_PORT_TYPE_BGM && mode==SCE_AUDIO_OUT_MODE_STEREO) {
+        std::lock_guard lock(device_capture_mutex);
+        capture_port=port;capture_frames=frames;device_capture.set_rate(rate);
+        vita_log("Audio capture device: port=%d frames=%d rate=%d stereo",port,frames,rate);
+    }
+    return port;
+}
+extern "C" int __wrap_sceAudioOutOutput(int port,const void *buffer) {
+    if(buffer) {
+        std::lock_guard lock(device_capture_mutex);
+        if(port==capture_port)
+            device_capture.append(static_cast<const int16_t *>(buffer),size_t(capture_frames)*2,sceKernelGetProcessTimeWide());
+    }
+    return __real_sceAudioOutOutput(port,buffer);
+}
+#endif
 
 int main() {
     sceIoMkdir(data_directory,0777);

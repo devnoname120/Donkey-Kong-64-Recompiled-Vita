@@ -101,6 +101,15 @@ target_include_directories(dk64_map_probe_checks PRIVATE
     "${repo}/lib/N64ModernRuntime/ultramodern/include"
     "${repo}/lib/N64ModernRuntime/thirdparty")
 add_test(NAME dk64_map_probe_checks COMMAND dk64_map_probe_checks)
+add_executable(dk64_audio_capture_checks ../vita/test_audio_capture.cpp)
+add_test(NAME dk64_audio_capture_checks COMMAND dk64_audio_capture_checks)
+add_executable(dk64_audio_queue_checks ../vita/test_audio_queue.cpp)
+add_generated_check_function(dk64_audio_queue_checks func_global_asm_80601EE4)
+target_include_directories(dk64_audio_queue_checks PRIVATE "${repo}/include" "${generated}")
+target_link_libraries(dk64_audio_queue_checks PRIVATE ultramodern)
+target_compile_options(dk64_audio_queue_checks PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
+target_link_options(dk64_audio_queue_checks PRIVATE -Wl,--gc-sections)
+add_test(NAME dk64_audio_queue_checks COMMAND dk64_audio_queue_checks)
 # Exercise the actual generated routine, including its TOML instruction patch.
 add_executable(dk64_deferred_free_checks ../vita/test_deferred_free.cpp)
 add_generated_check_function(dk64_deferred_free_checks func_global_asm_80611730)
