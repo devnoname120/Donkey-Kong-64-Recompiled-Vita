@@ -628,9 +628,9 @@
       "compiled": true,
       "purpose": "Minimum lag, cooperative waiting, DKTV pacing and frontend volume updates",
       "disposition": "partial",
-      "reason": "Native timing.cpp carries lag and scheduling corrections. Desktop AlterVolumes configuration plumbing is not imported.",
-      "evidence": "dk64_timing_checks covers lag, waits, story intervals and DKTV; host/native intro validation.",
-      "next_action": "Audit original in-game volume behavior separately from desktop configuration features."
+      "reason": "Native timing.cpp carries lag and scheduling corrections. Desktop AlterVolumes configuration synchronization is intentionally omitted because the Vita retains the original in-game volume controls.",
+      "evidence": "dk64_timing_checks covers lag, waits, story intervals and DKTV; host/native intro validation. Original ROM BGM/SFX defaults are both 40. The desktop API maps its 100-percent default to 40, then AlterVolumes forces those configured values into the game. The original 8002CFA4 sound-menu handler passes 32 clamp/input/mixer-call checks plus default reset: SFX updates four channel levels and BGM refreshes sequence channels 0/2. A compiled-AlterVolumes positive control overwrites lower in-game values with the frontend defaults, confirming why that bridge should not be imported alone. Mixer callbacks are recorded, not executed.",
+      "next_action": "Validate native sound-menu controls and audio continuity while playing; the volume-control path is accounted for, but these setter checks do not establish audio quality or complete timing parity."
     },
     {
       "source": "patches/patches_main.c",
@@ -946,11 +946,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_global_asm_806A4284",
       "compiled": true,
-      "purpose": "Increase matrix command storage for tagging",
+      "purpose": "Increase text-bubble display-list storage for desktop matrix tagging",
       "disposition": "retained_original",
-      "reason": "The upstream comment ties the 0x4000-to-0x5000 expansion to added matrix tags. Vita does not insert those tags.",
-      "evidence": "Inspected patch source and the Vita build/hook path. No function-specific gameplay test; broad intro checks are not proof of this individual effect.",
-      "next_action": "Verify any other non-tag changes in this nonmatching function before enabling the desktop replacement."
+      "reason": "Retain the original 0x4000-byte child-list allocation with its deferred release and existing text-bubble renderer. Upstream requests 0x5000 bytes to accommodate matrix tags emitted by its changed glyph renderer; those tags are not inserted by the Vita path.",
+      "evidence": "The original 438-instruction routine and compiled upstream replacement match display-list words, matrices, animation state and helper arguments in 576 paired cases; only the allocation request differs. Cases cover empty/single/multiple linked nodes, iteration limits and early stop, both banks, two player views, custom scissor bounds, scale and frame-wrap boundaries. Actual generated matrix routines run; background and glyph helpers are modeled.",
+      "next_action": "Validate full text bubbles and glyph capacity in native/physical scenes. Reassess allocation size with the glyph renderer if adding matrix tags."
     },
     {
       "source": "patches/patches_matrix.c",
@@ -1376,41 +1376,41 @@
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_806A92B4",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Align pause text and tag main-menu option transforms for interpolation",
+      "disposition": "retained_original",
+      "reason": "Retain original pause text, health images, option/confirmation selection, progress totals, shared sprite-position arrays and 8000-byte child-list ownership at 4:3. Upstream adds extended left/right alignment around edge text and matrix groups for menu options and confirmation prompts.",
+      "evidence": "The original 890-instruction renderer and compiled upstream replacement match helper arguments, parent/normalized child lists and persistent guest state in 2400 paired cases after removing only extended alignment and balanced identity/interpolation wrappers. Tests cover all four menu modes, normal/special worlds, option/confirmation states, progress variants, fade limits, visible/hidden page-scroll boundaries and frame-bank/counter values. Generated trig and matrix-group helpers run; font/image drawing and page/progress helpers are modeled. This does not establish identical post-call modelview state for real drawing callbacks.",
+      "next_action": "Validate complete pause-page rendering, confirmation prompts, scrolling and background snapshots on physical Vita; keep alignment, matrix scopes and consumers paired if importing desktop rendering."
     },
     {
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_806AC07C",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation; Disable interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Suppress interpolation for large pause-sprite movements",
+      "disposition": "retained_original",
+      "reason": "Retain original pause-sprite animations, alpha/scale/color updates, wandering targets and removal conditions. Upstream adds ALIGN_NO_INTERP when an X or Y change exceeds 80 coordinate units and clears it otherwise. Vita uses the original game-rate sprite path without interpolation history.",
+      "evidence": "The original 643-instruction routine and compiled upstream replacement match low-8-MiB guest state, including RNG and shared sprite arrays, in 4000 paired mode/page/fade/scroll cases after accounting only for the new interpolation bit. Tests cover animation types 0..15, null metadata, fade clamp boundaries, scroll-removal boundaries, wandering targets and both page banks. Six additional cases check both signs just below, at and above 80. Actual generated angle trig and game RNG routines run; the result is not a rendered-animation test.",
+      "next_action": "Validate visible pause-sprite animation and removal across page changes on physical Vita; import the interpolation bit only with the corresponding sprite renderer support."
     },
     {
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_806AB4EC",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Preserve desktop alignment while initializing pause sprites",
+      "disposition": "retained_original",
+      "reason": "Retain original sprite lookup, callback registration, metadata sizes, mode remapping, mirroring and availability tint. Upstream makes the on-screen-flag setter conditional so that preselected left/right alignment survives. Original values 0/1 produce the same initialization; Vita retains its original producer/consumer flag policy.",
+      "evidence": "The original 199-instruction constructor and compiled upstream replacement match modeled sprite/metadata state, helper arguments and real RNG state in 512 paired cases covering all mode values, indexed/direct sprite references, page banks, original alignment 0/1, availability and two scales. Callback addresses are normalized to the same update-function identity. Two positive controls confirm that original forces alignment 1 while upstream preserves 3/5, with other state equal. The actual generated RNG runs; sprite creation, allocation and resource lookup are modeled.",
+      "next_action": "Check actual pause sprite resources and animation in native/physical gameplay. Preserve callback, alignment and metadata ownership together if switching to desktop anchored sprites."
     },
     {
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_806AA304",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Add desktop pause-sprite alignment and interpolation reset during page initialization",
+      "disposition": "retained_original",
+      "reason": "Retain original inventory/progress queries, sprite/text selection, page setup, character-index restoration and sprite metadata behavior. Upstream adds left/right alignment selections and a sprite-interpolation lockdown request with value 2. These additions are paired with desktop renderer features.",
+      "evidence": "The original 1146-instruction initializer and compiled upstream replacement match helper arguments, sprite counts and low-8-MiB state in 384 paired cases after accounting for alignment values 3/5 and the interpolation callback. Both invoke their actual 806AB4EC constructors. Cases cover four menu modes, two characters and banks, normal/special worlds, feature masks and initial/refresh paths. Tests verify restoration of current_character_index. Generated trig, rounding and RNG run; flag/progress queries, text-entry construction, resource lookup and base sprite creation are modeled.",
+      "next_action": "Validate each pause page and its progress-dependent items in native/physical gameplay; these controlled flag-query cases do not establish every save state or resource combination."
     },
     {
       "source": "patches/patches_ui.c",
@@ -1599,8 +1599,8 @@
       "purpose": "Remove settings moved to the desktop frontend",
       "disposition": "retained_original",
       "reason": "Vita retains the original in-game sound/options menus because those replacement frontend controls are not present.",
-      "evidence": "Inspected reference C and the Vita build/hook path. No function-specific gameplay test; broad intro checks are not proof of this individual effect.",
-      "next_action": "Revisit if the corresponding desktop feature is added; retain the original behavior for this port."
+      "evidence": "The actual generated original handler passes 32 SFX/BGM increment/decrement/priority/clamp cases, including values 0, 1, 39 and 40, plus a reset-defaults check. SFX produces four channel updates at volume*625; BGM refreshes sequence channels 0 and 2. ROM defaults and the desktop percentage conversion are verified. Menu navigation, persistence and mixer callbacks are modeled; no audible gameplay test is claimed.",
+      "next_action": "Validate the original sound-menu sliders, mode selection and audible results on physical Vita; keep desktop volume synchronization paired with a fully integrated frontend."
     },
     {
       "source": "patches/sound_options_patches.c",

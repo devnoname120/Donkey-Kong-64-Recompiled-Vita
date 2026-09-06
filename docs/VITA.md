@@ -184,7 +184,10 @@ The MIPS objects, linked ELF and strict-recompiler registration table agree on
 that inventory. It is an ongoing semantic audit, not a claim that every desktop
 replacement is active or appropriate on Vita; unresolved rows remain explicit.
 `tools/audit_vita_patches.py` checks inventory/source drift and the generated
-report, and can fail if unresolved rows remain.
+report, and can fail if unresolved rows remain. Every compiled replacement now
+has a recorded disposition, and the `--require-resolved` inventory gate passes.
+Fourteen partial integrations still carry implementation or validation limits;
+passing the inventory gate does not establish a complete or validated port.
 
 Boot also retains the original CPU-drawn red Nintendo logo. Native initialization
 previously reached the main loop and reset logo mode before its 60-VI unblanking
@@ -326,6 +329,32 @@ match compiled upstream in 864 paired boundary cases. The desktop addition is
 an interpolation lockdown when a slide finishes. Drawing and sound callbacks
 are modeled in this check; pause rendering, snapshot readback and the remaining
 HUD patches require their own validation.
+
+The four pause-menu replacements are also accounted for. The sprite constructor
+matches 512 controlled cases for original alignment values 0/1; the updater
+matches 4000 animation/page/fade/scroll cases after accounting for the added
+interpolation bit. Six boundary cases verify its strict 80-unit movement test.
+Menu initialization matches 384 cases with the actual constructors, including
+restoration of the current character index. Text rendering matches 2400 cases
+after removing desktop alignment and balanced matrix-interpolation wrappers.
+Game trig, rounding and RNG execute their generated code. Sprite/resource
+creation, progress queries and drawing helpers are modeled, so full pause-page
+pixels and post-call graphics state remain gameplay-validation work.
+
+An older text-bubble review note is now resolved by 576 paired cases using the
+actual generated matrix routines. Commands, matrices, state and helper arguments
+agree; the allocation changes from 0x4000 to 0x5000 solely for desktop glyph
+matrix tags. Vita retains the original allocation and glyph path. Background
+and glyph helpers are modeled in that comparison.
+
+The omitted `AlterVolumes` call is desktop configuration synchronization.
+Vita keeps the original sound menu, which directly adjusts the game's 0..40
+BGM/SFX levels. Its generated handler passes 32 boundary/input/mixer-call cases
+and a defaults-reset check. SFX updates four channel levels; BGM refreshes
+sequence channels 0 and 2. A positive control confirms that importing the
+desktop hook with its default settings would overwrite lower in-game settings.
+This resolves the volume-plumbing question, while audible quality and continuity
+remain separate runtime checks.
 
 HUD numbers and rolling minigame counters retain their original 4:3 clipping and
 alignment. The number renderer matches compiled upstream in 2700 formatting,
