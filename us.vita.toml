@@ -40,6 +40,32 @@ text = "{ extern void dk64_vita_remove_cutscene_controllers(uint8_t*, recomp_con
 [[patches.hook]]
 func = "func_global_asm_80704484"
 text = "{ extern int dk64_vita_cover_stopped_transition(uint8_t*, recomp_context*); if (dk64_vita_cover_stopped_transition(rdram, ctx)) return; }"
+[[patches.hook]]
+func = "func_global_asm_80703AB0"
+text = "{ extern void dk64_vita_cutscene_fade(uint8_t*, recomp_context*); dk64_vita_cutscene_fade(rdram, ctx); return; }"
+
+# The Rap static uses upstream's current-viewport scissor and stripe width.
+# Preserve the original noise/RNG loop; replace its fixed overscan constants.
+[[patches.hook]]
+func = "func_global_asm_807035C4"
+before_vram = 0x807036A0
+text = """
+const gpr dk64_vita_static_view = MEM_W(0, 0xffffffff807fc924ULL);
+const uint32_t dk64_vita_static_x0 = ((uint32_t)MEM_H(0x270, dk64_vita_static_view) << 2) & 0xfff;
+const uint32_t dk64_vita_static_y0 = ((uint32_t)MEM_H(0x272, dk64_vita_static_view) << 2) & 0xfff;
+const uint32_t dk64_vita_static_x1 = ((uint32_t)MEM_H(0x274, dk64_vita_static_view) << 2) & 0xfff;
+const uint32_t dk64_vita_static_y1 = ((uint32_t)MEM_H(0x276, dk64_vita_static_view) << 2) & 0xfff;
+ctx->r14 = (int32_t)(0xed000000U | (dk64_vita_static_x0 << 12) | dk64_vita_static_y0);
+ctx->r15 = (int32_t)((dk64_vita_static_x1 << 12) | dk64_vita_static_y1);
+"""
+[[patches.hook]]
+func = "func_global_asm_807035C4"
+before_vram = 0x807036B4
+text = "ctx->r20 = (int32_t)(0xf6000000U | (dk64_vita_static_x1 << 12));"
+[[patches.hook]]
+func = "func_global_asm_807035C4"
+before_vram = 0x807036DC
+text = "ctx->r21 = dk64_vita_static_x0 << 12;"
 
 # Upstream removes the uncached corruption check inside the deferred-free
 # routine, not the routine itself. Supply the expected comparison value in t7

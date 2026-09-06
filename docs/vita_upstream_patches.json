@@ -726,41 +726,41 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80701CA0",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior; Used to be a verts-based draw, now is just fillrect",
+      "purpose": "Replace the underwater-tint vertex quad with a primitive rectangle",
       "disposition": "review_required",
       "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "evidence": "An initial paired sample matches opacity state and primitive color. Original generated code allocates/frees 64 bytes for four vertices (not matrices), writes player bounds and submits two triangles; upstream emits a rectangle. Geometry/scissor behavior across player/viewport states still needs verification.",
+      "next_action": "Compare the original vertex path and upstream rectangle through the actual renderer, including viewport and underwater-state transitions, before deciding applicability."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_8068D264",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
+      "purpose": "Replace the sandstorm textured quad with a screen-space textured rectangle",
       "disposition": "review_required",
       "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "evidence": "Original generated entry already converts the unsigned lag through double half-lag to float at 0x8068D2BC..0x8068D2D0; fractional lag is not missing. An initial paired Aztec sample matches texture acquisition/release and scroll updates (lag 3 changes offsets 100/200 to 97/179). Both use the same one-cycle MODULATEIA_PRIM mode; original vertex/tile-origin mapping versus rectangle mapping remains to be checked.",
+      "next_action": "Compare original quad coverage, texel scale/origin and viewport changes with upstream before retaining or replacing the draw path; validate actual sandstorm pixels."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80703AB0",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Draw a uniform cutscene fade using the supplied alpha",
+      "disposition": "equivalent",
+      "reason": "The native helper emits the upstream classic F3DEX2 primitive-rectangle sequence, including cloud-surface blending and the existing scissor. It replaces the original quad whose alternating corners use alpha and doubled alpha, and skips the draw when alpha is zero.",
+      "evidence": "Native helper output matches the compiled upstream replacement in 2048 command-stream cases covering every alpha, four bounds sets and cached/uncached list aliases. The generated-entry GLES regression failed before the hook and now verifies uniform pixels, inherited clipping and caller state across both banks and batching modes. This exercises the real Fast interpreter/renderer with controlled initial graphics state.",
+      "next_action": "Validate the affected cutscene transition in native gameplay and on physical Vita; command/pixel tests do not establish every caller scenario."
     },
     {
       "source": "patches/patches_main.c",
       "function": "func_global_asm_807035C4",
       "compiled": true,
-      "purpose": "Boot, runtime, viewport, culling or lighting behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Keep DK Rap static and stripes inside the current viewport",
+      "disposition": "equivalent",
+      "reason": "Three hooks replace the original fixed 10,10..309,229 scissor and stripe x constants with current viewport bounds. The original primitive colors, noise mode, ten-stripe loop and game RNG remain. This also fixes contracted 4:3 views, not only expanded desktop views.",
+      "evidence": "Original and compiled upstream initially agree at the normal overscan viewport, but the original spills noise outside contracted views. The real generated-entry/F3DEX2/GLES regression fails before the bounds hooks and passes afterward. Patched commands and final RNG state match compiled upstream in 56 viewport/seed cases, including full, split, narrow and one-pixel views. rand_recomp is the generated game wrapper that masks 806119A0, not host libc randomness.",
+      "next_action": "Validate the static sequence during native Rap/camera transitions and on physical Vita; the targeted pixel fixture uses controlled graphics state."
     },
     {
       "source": "patches/patches_main.c",

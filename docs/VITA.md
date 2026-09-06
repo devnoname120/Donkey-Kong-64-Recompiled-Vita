@@ -262,6 +262,15 @@ pairs and 72 enabled distant-record calculations. Geometric predicates and
 geometry-draw helpers are modeled; real portals, multiplayer views and distant
 objects still require gameplay validation.
 
+Two screen-overlay fixes also apply at the native aspect ratio. Cutscene fades
+now emit upstream's uniform primitive alpha instead of alternating normal and
+doubled alpha at the original quad corners. Rap static uses the current viewport
+for its scissor and stripe width, fixing noise outside a contracted view while
+preserving the game's RNG. Both failed targeted pixel regressions before their
+hooks and pass through the real Fast F3DEX2 interpreter and GLES renderer afterward.
+Command streams also match the compiled upstream replacements in 2048 fade and
+56 static cases. Underwater tint and sandstorm geometry remain under review.
+
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
 fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,

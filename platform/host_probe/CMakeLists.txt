@@ -67,7 +67,7 @@ target_compile_definitions(probe_game PRIVATE RECOMP_TRACK_MEMORY_WRITES)
 target_include_directories(probe_game PRIVATE "${repo}/include" "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 target_compile_options(probe_game PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
 add_executable(dk64_runtime_probe main.cpp resource_audit.cpp
-    ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/boot.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
+    ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/boot.cpp ../vita/overlays.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
     "${repo}/src/game/rom_decompression.cpp" "${repo}/rsp/n_aspMain.cpp")
 target_include_directories(dk64_runtime_probe PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/thirdparty/sse2neon")
@@ -168,4 +168,13 @@ if(PROBE_GL)
     enable_gl_audit(rt64_gl_checks)
     add_test(NAME rt64_gl_checks COMMAND rt64_gl_checks)
     set_tests_properties(rt64_gl_checks PROPERTIES ENVIRONMENT "GALLIUM_DRIVER=softpipe")
+    add_executable(dk64_overlay_checks ../vita/test_overlays.cpp ../vita/overlays.cpp egl.cpp)
+    foreach(symbol func_global_asm_80703AB0 func_global_asm_807035C4 rand_recomp func_global_asm_806119A0)
+        add_generated_check_function(dk64_overlay_checks ${symbol})
+    endforeach()
+    target_include_directories(dk64_overlay_checks PRIVATE "${repo}/include" "${generated}"
+        "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+    target_link_libraries(dk64_overlay_checks PRIVATE rt64 librecomp PkgConfig::EGL)
+    add_test(NAME dk64_overlay_checks COMMAND dk64_overlay_checks)
+    set_tests_properties(dk64_overlay_checks PROPERTIES ENVIRONMENT "GALLIUM_DRIVER=softpipe")
 endif()
