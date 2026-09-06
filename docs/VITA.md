@@ -195,6 +195,17 @@ capture verifies the formerly missing logo; helper tests cover timing, sound
 ordering and caller state. The quiet native Vulkan build reaches the normal intro,
 but the short logo window and physical-device audibility still need confirmation.
 
+The camera and cutscene-actor routines retain their original game behavior.
+Comparisons with compiled upstream cover 493 camera cases and 604 actor cases,
+checking the first 8 MiB of guest state and gameplay-helper arguments. The game
+RNG and camera-bank advancement execute their generated code; physics, animation,
+tracking, clock and other helpers are modeled. The differences are confined in
+these cases to desktop interpolation resets: camera timer values 2/3 at segment
+initialization/completion, and actor lockdown value 2 after a scripted coordinate
+change greater than 100 units. Boundary checks preserve a larger existing camera
+timer and distinguish both signs just below, at and above 100 units. Complete
+cutscene playback and camera collision still need native/physical validation.
+
 Native gameplay hooks now restore the five Helm temporary completion flags for
 an eligible existing save and remove lingering cutscene controllers before a new
 one is spawned. Cleanup handles both deferred deletion and immediate actor-list
@@ -271,6 +282,16 @@ each `displayImage` matrix load for interpolation, while Vita retains the origin
 caller's state behavior. These results support retaining the original paths;
 actual prop/fluid geometry, lens-flare pixels and following overlays still need
 gameplay validation on physical Vita.
+
+The shared sprite renderer also keeps its original alignment values 0/1 and
+classic display-list path. Its original flag setter/reset and constructor form
+the retained producer side. Across 768 drawing and 432 visibility cases, child
+lists, sprite/cache state, helper arguments and normalized parent commands match
+compiled upstream. The parent-list normalization removes only interpolation
+tags and balanced identity-matrix push/pop pairs. Display setup and matrix-group
+helpers run, while culling and lighting are modeled. This supports the original
+sprite policy; extended alignment flags, final pixels and post-call modelview
+state require separate validation before importing desktop interpolation.
 
 The static Dolby Surround logo and legal text now carry upstream's matching 240p layout.
 The previous Vita path selected 240p but retained the 480i drawing dimensions.

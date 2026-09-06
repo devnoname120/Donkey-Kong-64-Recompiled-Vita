@@ -426,11 +426,11 @@
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_8061DBD4",
       "compiled": true,
-      "purpose": "Camera/actor interpolation and cutscene behavior; On cutscene end, disable interpolation for 2f. 1f seems to not be enough",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Suppress desktop perspective interpolation at camera segment starts and cutscene completion",
+      "disposition": "retained_original",
+      "reason": "Retain original camera tracking, cutscene command processing, lag arithmetic and state updates at the native game rate. Upstream adds a perspective-interpolation timer reset: value 2 at segment initialization and value 3 at completion, preserving any larger existing timer. Vita has no interpolated intermediate camera frames.",
+      "evidence": "The original 937-instruction routine and compiled upstream replacement match the first 8 MiB of guest memory and gameplay-helper arguments in 493 paired cases: 80 normal-camera/control cases, 336 cutscene command/duration/phase cases, 45 flag combinations and 32 timer-boundary cases. The actual generated 8061D898 camera-bank advancement helper runs; physics, tracking, trig, timing and other callbacks are modeled. Upstream-only interpolation storage and the temporary guest stacks are outside the compared region. Timer tests verify initialization/completion values and preservation of an existing value 5.",
+      "next_action": "Validate complete camera cuts, segment transitions and return to player control during native and physical gameplay. The controlled callback comparison does not execute full camera collision or complete cutscene playback."
     },
     {
       "source": "patches/patches_interpolation.c",
@@ -526,11 +526,11 @@
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_806BFBF4",
       "compiled": true,
-      "purpose": "Camera/actor interpolation and cutscene behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Suppress desktop actor interpolation after large scripted position changes",
+      "disposition": "retained_original",
+      "reason": "Retain original cutscene-actor event dispatch, movement, animation and emitter behavior. Upstream records the old position during scripted movement states 14/15 and requests actor interpolation lockdown value 2 when any resulting coordinate changes by more than 100 units. The extra lockdown belongs to desktop interpolation state.",
+      "evidence": "The original 1323-instruction routine and compiled upstream replacement match the first 8 MiB of guest memory and gameplay-helper arguments in 604 paired cases: 448 event/initialization/map cases, 144 actor-state cases and 12 movement-boundary cases. Tests include event codes 0..26, Rap/non-Rap handling, rotation/scale updates, allocation/free arguments, sprite emitters and movement completion. The real generated game RNG and rand wrapper run, with final RNG state included in the comparison. Physics, animation, allocation and drawing helpers are modeled; only the added interpolation callback is excluded. Both signs just below, exactly at and above 100 verify the strict displacement threshold.",
+      "next_action": "Validate actor motion, emitters and cutscene exits in representative native/physical scenes. This comparison covers controlled helper behavior rather than animation assets, physical movement or rendered interpolation."
     },
     {
       "source": "patches/patches_interpolation.c",
@@ -1076,11 +1076,11 @@
       "source": "patches/patches_ui.c",
       "function": "func_global_asm_80715E94",
       "compiled": true,
-      "purpose": "HUD/menu alignment, clipping and interpolation; disable sprite culling",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Tag sprite transforms and support desktop HUD alignment flags",
+      "disposition": "retained_original",
+      "reason": "Retain original sprite visibility, child display-list construction, lighting and texture-cache behavior for alignment values 0/1. Original 8071495C sets the on-screen flag to 1, 80714A9C resets it to 0, and the constructor copies it to sprite offset 0x36F. Upstream adds sprite IDs, matrix-interpolation wrappers and extended alignment/overscan flags. The separate desktop culling bypass is not imported.",
+      "evidence": "The original 1055-instruction routine and compiled upstream replacement match normalized parent commands, complete child lists, sprite/cache state and helper arguments across 768 drawing cases and 432 visibility cases. Cases cover all four texture sizes, zero/one/four layers, both frame banks, first/fourth player and list slots, cache hits, lighting, chunk selection and visibility flags. Only parent interpolation tags and balanced identity push/pop pairs are removed; all other low-8-MiB memory outside the reserved parent-list buffer is compared. The actual generated display setup and upstream matrix-group helpers run; a common modeled culling predicate and lighting callback are used. Extra desktop alignment values are excluded by the retained original producer policy.",
+      "next_action": "Validate world/HUD sprite transitions and final pixels on physical Vita. As with lens flares, the additional identity scope can affect post-call modelview state; normalized command equality does not prove complete graphics-state equivalence. Revisit producers, culling, allocation and consumers together if enabling extended alignment or interpolation."
     },
     {
       "source": "patches/patches_ui.c",
