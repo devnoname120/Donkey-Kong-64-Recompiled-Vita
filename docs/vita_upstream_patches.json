@@ -66,11 +66,11 @@
       "source": "patches/boot_logos_patches.c",
       "function": "func_global_asm_805FBFF4",
       "compiled": true,
-      "purpose": "Boot-logo rendering, initialization and per-frame callbacks",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
-      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
+      "purpose": "Present the boot logo with aligned sound/timing and add desktop per-frame integration",
+      "disposition": "partial",
+      "reason": "After the original startup timer receive, the Vita hook waits cooperatively for the existing VI callback to unblank the CPU logo, queues the original sound with private guest arguments, and holds logo mode for 1.4 seconds using the runtime clock. It retains the original main-loop dispatch, 4:3 scissor data and CPU framebuffer path. Desktop GPU logo commands, viewport rewriting, interpolation state and frontend/mod events are not imported.",
+      "evidence": "Full 175-instruction original loop plus upstream source comparison. Before/after host traces show logo mode was previously reset before the 60-VI unblank point, while the fixed run captures the red logo and proceeds to the intro (261 graphics tasks and 339 audio buffers over 12 seconds). dk64_boot_logo_checks verifies ordering, duration, cancellation, clock wrap, private arguments and both floating-register alias modes. The quiet native Vulkan build reaches the intro with unchanged saves/log.",
+      "next_action": "Validate physical boot visuals/audibility and broader main-loop modes; native screenshot timing did not capture the red logo itself."
     },
     {
       "source": "patches/boot_logos_patches.c",
@@ -86,11 +86,11 @@
       "source": "patches/boot_logos_patches.c",
       "function": "func_global_asm_805FB7E4",
       "compiled": true,
-      "purpose": "Copy the CPU-drawn Nintendo logo for GPU presentation",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
-      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
+      "purpose": "Prepare the CPU Nintendo logo and copy it to a separate desktop GPU texture",
+      "disposition": "retained_original",
+      "reason": "Vita retains the original decompression, framebuffer clear and centered 192x48 pixel copy. Its CPU-only VI presentation path makes the extra redNintendoLogoTexture allocation/copy unnecessary. The missing display was caused by startup leaving logo mode too early, corrected at the main-loop handoff.",
+      "evidence": "Compared the complete matching reference C and all 88 generated instructions. A real host boot produced 5278 colored framebuffer pixels but remained VI-blank before the handoff fix. With the fix, a captured CPU-only frame visibly shows the red Nintendo logo before any graphics task. The quiet ARM VPK then reaches the normal intro in Vita3K/Vulkan; its short red-logo window was not captured there.",
+      "next_action": "Confirm red-logo presentation and sound on physical Vita; the direct logo-image capture currently proves the host path."
     },
     {
       "source": "patches/patches_balancing.c",
@@ -666,11 +666,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_805FBC5C",
       "compiled": true,
-      "purpose": "Startup queue sizes, wait timing and initialization ordering",
-      "disposition": "review_required",
-      "reason": "The original decompression completion queue is coherently sized to 192 and is retained with its producer/storage. The replacement also changes initial delay and sound ordering, which remain part of the unfinished boot-sequence review.",
-      "evidence": "Generated initializer at 0x805FBCAC passes capacity 0xc0. Queue boundary/ownership checks pass and the observed host peak was 98. Original red-logo/sound timing has not yet been verified.",
-      "next_action": "Keep the 192-entry storage group intact; finish the separate boot-logo, initial-delay and sound-order review before closing this entire replacement."
+      "purpose": "Initialize startup queues/timer and move the logo sound to presentation",
+      "disposition": "partial",
+      "reason": "The early playSound call is removed and invoked once at the visible-logo handoff in 805FBFF4. Vita retains the original 0.3-second initialization timer and 192-entry decompression queue together with its original job/DMA arrays; the desktop 0.1-second timer and enlarged queue are not required by this CPU-logo path.",
+      "evidence": "Compared all 106 generated instructions with the upstream initializer: queue capacities are 50, 192, 16 and 2; countdown 0x00D693A4 is 0.3 seconds at 46.875 MHz. The one-instruction sound-call removal regenerates successfully, and before/after runtime traces plus the boot helper regression validate the new handoff. Existing generated queue-boundary/ownership tests cover the retained 192-entry arrangement.",
+      "next_action": "Confirm startup sound and timing on physical Vita; retain queue/array capacity tests when changing the memory budget."
     },
     {
       "source": "patches/patches_main.c",

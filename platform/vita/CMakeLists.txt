@@ -48,7 +48,7 @@ if(DK64_VITA_GAME)
         target_compile_definitions(ultramodern PRIVATE RECOMP_SCHEDULER_DIAGNOSTICS)
         target_compile_options(dk64_recompiled_vita PRIVATE -finstrument-functions)
     endif()
-    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp profile.cpp timing.cpp framebuffer.cpp
+    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp profile.cpp timing.cpp framebuffer.cpp
         register_overlays.cpp
         ${CMAKE_SOURCE_DIR}/src/game/rom_decompression.cpp
         ${CMAKE_SOURCE_DIR}/rsp/n_aspMain.cpp)

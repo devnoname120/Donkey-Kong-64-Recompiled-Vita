@@ -67,7 +67,7 @@ target_compile_definitions(probe_game PRIVATE RECOMP_TRACK_MEMORY_WRITES)
 target_include_directories(probe_game PRIVATE "${repo}/include" "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 target_compile_options(probe_game PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
 add_executable(dk64_runtime_probe main.cpp resource_audit.cpp
-    ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
+    ../vita/game_support.cpp ../vita/gameplay_fixes.cpp ../vita/boot.cpp ../vita/register_overlays.cpp ../vita/timing.cpp ../vita/framebuffer.cpp
     "${repo}/src/game/rom_decompression.cpp" "${repo}/rsp/n_aspMain.cpp")
 target_include_directories(dk64_runtime_probe PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/thirdparty/sse2neon")
@@ -77,6 +77,9 @@ target_link_options(dk64_runtime_probe PRIVATE -Wl,--wrap=getPointerTableFile -W
 add_executable(dk64_timing_checks ../vita/timing.cpp ../vita/test_timing.cpp)
 target_include_directories(dk64_timing_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_timing_checks COMMAND dk64_timing_checks)
+add_executable(dk64_boot_logo_checks ../vita/boot.cpp ../vita/test_boot_logo.cpp)
+target_include_directories(dk64_boot_logo_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_boot_logo_checks COMMAND dk64_boot_logo_checks)
 add_executable(dk64_gameplay_fix_checks ../vita/gameplay_fixes.cpp ../vita/test_gameplay_fixes.cpp)
 target_include_directories(dk64_gameplay_fix_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_gameplay_fix_checks COMMAND dk64_gameplay_fix_checks)

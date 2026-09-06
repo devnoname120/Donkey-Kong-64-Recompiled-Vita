@@ -186,6 +186,15 @@ replacement is active or appropriate on Vita; unresolved rows remain explicit.
 `tools/audit_vita_patches.py` checks inventory/source drift and the generated
 report, and can fail if unresolved rows remain.
 
+Boot also retains the original CPU-drawn red Nintendo logo. Native initialization
+previously reached the main loop and reset logo mode before its 60-VI unblanking
+point. The startup hook now yields until the logo is unblanked, plays the original
+sound with private guest arguments and holds the image for 1.4 seconds. The
+original 0.3-second initialization timer and queue capacities remain. A host
+capture verifies the formerly missing logo; helper tests cover timing, sound
+ordering and caller state. The quiet native Vulkan build reaches the normal intro,
+but the short logo window and physical-device audibility still need confirmation.
+
 Native gameplay hooks now restore the five Helm temporary completion flags for
 an eligible existing save and remove lingering cutscene controllers before a new
 one is spawned. Cleanup handles both deferred deletion and immediate actor-list

@@ -16,6 +16,17 @@ function_sizes = [
 [patches]
 ignored = ["D_global_asm_80611F0C", "D_global_asm_8071FA80", "D_global_asm_8061ACA0"]
 
+# Preserve the CPU logo until its VI callback unblanks it, then hold it for the
+# upstream 1.4-second display interval. Move the original sound to that handoff.
+[[patches.instruction]]
+func = "func_global_asm_805FBC5C"
+vram = 0x805FBDEC
+value = 0x00000000
+[[patches.hook]]
+func = "func_global_asm_805FBFF4"
+before_vram = 0x805FC074
+text = "{ extern void dk64_vita_present_boot_logo(uint8_t*, recomp_context*); dk64_vita_present_boot_logo(rdram, ctx); }"
+
 # Carry the gameplay fixes embedded in upstream's desktop patch replacements.
 # Here v0 is the file-status query result, after loading the selected save.
 [[patches.hook]]
