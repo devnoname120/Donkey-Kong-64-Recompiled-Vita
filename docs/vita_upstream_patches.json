@@ -146,11 +146,11 @@
       "source": "patches/patches_draw.c",
       "function": "func_global_asm_806303C4",
       "compiled": true,
-      "purpose": "Draw distance and asset/decompression handling",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_35000.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Apply the desktop draw-distance floor to chunk/prop records",
+      "disposition": "retained_original",
+      "reason": "The replacement adds recomp_filter_draw to the incoming distance. Vita retains original draw distances and the original record allocation; the malloc/_malloc spelling change does not represent a different allocator in the generated Vita function.",
+      "evidence": "Full reference-C comparison plus generated call 0x806304B0 to the original _malloc at 0x80610FE8. recomp_filter_draw returns the maximum of the original distance and the configured desktop floor. No patch-specific prop-distance playthrough is claimed.",
+      "next_action": "Keep the original distance path while extended draw distance is disabled; revisit with its allocation/culling dependencies if that feature is added."
     },
     {
       "source": "patches/patches_draw.c",
@@ -366,11 +366,11 @@
       "source": "patches/patches_heap.c",
       "function": "func_global_asm_80610350",
       "compiled": true,
-      "purpose": "Heap slots and rendering-buffer allocation",
-      "disposition": "review_required",
-      "reason": "This replacement changes heap-slot storage and rendering-buffer allocations together. Vita keeps original guest allocations; importing isolated constants would risk mismatching pointers and capacity.",
-      "evidence": "Patch allocation/storage code reviewed; complete generated-MIPS and budget equivalence remains unverified.",
-      "next_action": "Map original and replacement heap/framebuffer ranges and ownership, then test dense maps and allocation reuse."
+      "purpose": "Move the work-heap slot into desktop static storage",
+      "disposition": "retained_original",
+      "reason": "Vita keeps the original heap allocation and registration together. The desktop replacement substitutes heap_slot[0x40000] for the original allocation of the selected work-heap size plus 0x80. The original framebuffer/depth layout, fixed pools and 16-byte object headers remain paired on Vita.",
+      "evidence": "Compared the complete replacement with generated MIPS: framebuffer alignment at 0x806104E4..0x80610514, depth top 0x805FAE00, pool sizes 0x3810/0xC010/0x2810/0x61620 and preserved-object compaction agree. Original 0x806108C8..0x806108E4 allocates size+0x80 and registers it. Host Training Grounds/map loads and extended native attract mode exercise this path; no dedicated preserved-object compaction test is claimed.",
+      "next_action": "Retain the complete original allocation system; reassess its budget if desktop display-list or draw-distance expansions are introduced, and extend dense-map/heap-pressure validation."
     },
     {
       "source": "patches/patches_heap.c",
@@ -566,11 +566,11 @@
       "source": "patches/patches_interpolation.c",
       "function": "func_global_asm_806F386C",
       "compiled": true,
-      "purpose": "Camera/actor interpolation and cutscene behavior",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_F56F0.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Notify desktop autowalk events and reset cutscene-bar interpolation",
+      "disposition": "retained_original",
+      "reason": "Vita retains the original autowalk setup. The additions reset desktop perspective interpolation when cutscene bordering is enabled and emit recomp_on_autowalk; neither facility is connected to the current Vita renderer/runtime.",
+      "evidence": "Full reference-C diff and helper inspection. Generated 0x806F38F8 uses the same 8-byte item stride and 0x806F3914 reads the item pointer at offset 4, confirming that the renamed items field preserves the original layout. Opening-story/Training Grounds autowalk has run in host validation; no interpolation or desktop callback equivalence is claimed.",
+      "next_action": "Validate further autowalk/cutscene sequences; import callback/interpolation behavior only with those corresponding features."
     },
     {
       "source": "patches/patches_lightning.c",
@@ -1066,11 +1066,11 @@
       "source": "patches/patches_matrix.c",
       "function": "func_critter_80028EE8",
       "compiled": true,
-      "purpose": "Matrix groups, sprite tags and interpolation storage",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/critter/code_4840.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Assign stable interpolation identities to DK Rap lyric lines",
+      "disposition": "retained_original",
+      "reason": "The added line_index reset/increment feeds only the desktop lyric matrix tags. Vita keeps the original lyric allocation, positioning and string copy; its renderer does not interpolate tagged matrices.",
+      "evidence": "Full patch/reference comparison checked against generated MIPS: 0x80028F14 already multiplies the string index by 32, 0x80028FE0 already selects offset 0x820, and 0x80028F58/0x80028F60 retain the original frees. Native Vulkan runs render the DK Rap lyrics. The apparent string-layout changes in the C reference are type reconstruction differences.",
+      "next_action": "Retain original lyric lifetime and layout; stable line identities are required only if matrix interpolation is introduced."
     },
     {
       "source": "patches/patches_ui.c",
