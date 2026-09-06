@@ -306,6 +306,32 @@ an interpolation lockdown when a slide finishes. Drawing and sound callbacks
 are modeled in this check; pause rendering, snapshot readback and the remaining
 HUD patches require their own validation.
 
+HUD numbers and rolling minigame counters retain their original 4:3 clipping and
+alignment. The number renderer matches compiled upstream in 2700 formatting,
+fade and matrix cases after accounting for the changed scissor/alignment
+commands and moved viewport query. Centered upstream cases emit scissor and
+viewport pushes without matching pops in that routine; the original path emits
+neither. Desktop runtime consequences have not been tested. The rolling-counter
+comparison covers 2496 increment/decrement, digit-rollover and animation-phase
+cases: its original horizontal digit windows differ from upstream's wider
+viewport bounds, while vertical clipping, state updates and text arguments
+agree. A further 288 cases retain the original bonus-wrapper field selection
+and header/counter arguments, accounting for the added desktop alignment flags.
+These comparisons model font rendering and selected math/gameplay helpers.
+
+DKTV, sniper scopes and weather also keep their original viewport policy.
+The 240 DKTV comparisons isolate the desktop full-screen viewport and title
+shift; the counter/fade and helper arguments otherwise agree. The 56 scope
+comparisons retain the actual original per-player viewport/scissor helper,
+accounting for upstream's extra full-screen scissor. At width 426, a positive
+control moves exactly four outer-mask image arguments. Weather matches 192
+cases at width 320 after removing extended alignment commands, including full
+128-particle lists, suppression and deletion. A wider-view control changes only
+matrix X translation. Generated matrix functions run in these fixtures, while
+image drawing, texture selection, culling and particle-update helpers are
+modeled. Actual HUD glyphs, scope masks and weather still need native gameplay
+and physical-Vita validation.
+
 Portal traversal, chunk scissors and distant-screen visibility also remain
 paired with the original 4:3 projection. The original traversal can mark a
 billboard visible without loading the adjoining chunk. Desktop patches remove
