@@ -846,11 +846,11 @@
       "source": "patches/patches_main.c",
       "function": "func_global_asm_80704484",
       "compiled": true,
-      "purpose": "Cover stopped mid-map transitions and adjust desktop transition bounds",
+      "purpose": "Cover completion/stopped transition frames and account for desktop spin/audio differences",
       "disposition": "partial",
-      "reason": "A native entry hook emits the upstream opaque-black cover when speed is zero and progress exceeds 28. It reserves its own guest argument area and returns the advanced display-list pointer. Other original transition paths remain; desktop no-overscan changes are not imported.",
-      "evidence": "The upstream stopped-transition branch and generated entry hook were checked. dk64_gameplay_fix_checks covers the threshold, active-animation rejection, black/alpha arguments, display-list result and caller-stack preservation.",
-      "next_action": "Validate map transitions in gameplay and review the remaining desktop bounds changes separately."
+      "reason": "Vita carries the stopped-state cover beyond progress 28 and now the immediate black cover when an active transition crosses 31 (upstream 71ebfc3, MJ Cutscene flash). The completion hook preserves the manager frame and advances its saved display-list cursor. The earlier desktop spin cover is omitted with original viewport margins, and the original sequence-1/3 audio fade list is retained.",
+      "evidence": "The generated-manager GLES regression fails before the completion hook and passes afterward in 28 crossing/exact/stopped/opening/spin cases across batching modes, checking framebuffer pixels, VI calls, audio-list preservation and caller state. In 100800 original-versus-compiled-upstream manager pairs, progress, speed, flags and story state match after the fix; callback arguments and modeled drawing output match except that 4032 pairs retain original spin dispatch between progress 25 and 28. Upstream inlines its fade; that compiled leaf is used as a drawing-callback model for the manager comparison. 124 pixel replays use actual ROM texture 14/95, the original static display-list preset and generated trig/matrix routines; late spin corner leaks reach 4-32 pixels at alpha 242-248, all outside the retained viewport, and batching matches. The original audio list is [1,3,0], while upstream uses [0,0,0]: 256 actual 8070B324/8060A4D0 consumer pairs show that the latter omits sequence-1/3 gain updates while preserving common mixer-group, flag and priority behavior. Audio output and other drawing callbacks are modeled. See build/upstream-transition-review/validation.json.",
+      "next_action": "Validate the affected cutscene/map-transition visuals and audible fades in native gameplay and on physical Vita. Keep the original viewport and sequence-fade policies together; the remaining source differences are accounted for."
     },
     {
       "source": "patches/patches_main.c",

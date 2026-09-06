@@ -249,6 +249,34 @@ or audio-quality proof. See [the inputs and native evidence](VITA_KLAMOUR_VALIDA
 
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
+The manager now also covers the frame that crosses progress 31, carrying upstream
+commit `71ebfc3` ("MJ Cutscene flash"). Previously that frame requested VI blanking
+but emitted no cover; the existing stopped-state hook acted on a later call. The
+new hook appends the original black primitive and advances the manager's saved
+display-list pointer. A generated-entry GLES regression fails before the change
+and passes after it in 28 boundary, opening and spin cases across batching modes.
+It checks rendered pixels independently of when VI blanking becomes visible.
+
+The rest of this manager has also been compared against compiled upstream in
+100800 cases. Two intentional differences remain: the earlier desktop spin cover
+and its empty audio sequence list. Pixel replays using the original texture,
+display-list preset and generated math find 4-32 late-spin corner pixels outside
+the retained viewport at alpha 242-248; the original margins already clip those
+pixels. Earlier blacking would also remove the center opening sooner. For audio,
+the original `[1,3,0]` list fades sequence gains 1 and 3; upstream's `[0,0,0]` omits
+those updates. The empty list arrived with the spin patch without a stated audio
+fix. Vita retains its original sequence fades: 256 runs of the actual consumer
+and gain setter confirm that only those updates differ, with common mixer-group
+values, flags and priority restoration preserved. Those mixer callbacks are
+modeled, so audible transition behavior still requires a gameplay check. Local
+evidence is in `build/upstream-transition-review/`.
+The rebuilt quiet ARM VPK boots through the DK Rap in Vita3K/Vulkan with normal
+controls, no diagnostic files created and unchanged test-save hashes. Its release
+checks retain `NO_SPLASHSCREEN=1` and the requested readback speedhack, reject
+scripted/map probes and verify the absence of debug sections and logging symbols.
+The host suite passes all 23 checks. This does not establish the affected cutscene's
+appearance on physical Vita; the new pixel regression isolates the crossing frame.
+
 Framebuffer fades and wipes retain the fractional half-lag sampled at function
 entry. Their integer progress truncates after arithmetic; radial and clock
 updates retain the upstream double arithmetic. The original CPU framebuffer,

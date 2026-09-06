@@ -41,6 +41,10 @@ text = "{ extern void dk64_vita_remove_cutscene_controllers(uint8_t*, recomp_con
 func = "func_global_asm_80704484"
 text = "{ extern int dk64_vita_cover_stopped_transition(uint8_t*, recomp_context*); if (dk64_vita_cover_stopped_transition(rdram, ctx)) return; }"
 [[patches.hook]]
+func = "func_global_asm_80704484"
+before_vram = 0x8070464C
+text = "{ extern void dk64_vita_cover_transition_end(uint8_t*, recomp_context*); dk64_vita_cover_transition_end(rdram, ctx); }"
+[[patches.hook]]
 func = "func_global_asm_80703AB0"
 text = "{ extern void dk64_vita_cutscene_fade(uint8_t*, recomp_context*); dk64_vita_cutscene_fade(rdram, ctx); return; }"
 

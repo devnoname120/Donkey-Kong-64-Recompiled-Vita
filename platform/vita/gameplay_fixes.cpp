@@ -23,6 +23,20 @@ extern "C" int dk64_vita_cover_stopped_transition(uint8_t *rdram,recomp_context 
     return 1;
 }
 
+extern "C" void dk64_vita_cover_transition_end(uint8_t *rdram,recomp_context *ctx) {
+    // 80704484 keeps its display-list cursor at sp+0x60. Upstream's
+    // "MJ Cutscene flash" fix covers the frame that crosses progress 31,
+    // before relying on VI blanking or the following stopped-state call.
+    recomp_context call=*ctx;
+    call.f_odd=call.mips3_float_mode?&call.f1.u32l:&call.f0.u32h;
+    call.r4=MEM_W(0x60,ctx->r29);
+    call.r29=ADD32(call.r29,-0x20);
+    call.r5=call.r6=call.r7=0;
+    do_sw(rdram,0x10,call.r29,255);
+    func_global_asm_80703374(rdram,&call);
+    do_sw(rdram,0x60,ctx->r29,call.r2);
+}
+
 extern "C" void dk64_vita_restore_helm_medals(uint8_t *rdram,recomp_context *ctx,uint32_t existing_file) {
     if(!existing_file) return;
     // The file has been loaded and temporary flags cleared at this hook. Use
