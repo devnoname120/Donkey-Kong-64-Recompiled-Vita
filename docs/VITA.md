@@ -693,8 +693,13 @@ docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build \
 ```
 
 This builds `build/vita/platform/vita/rt64_fast_smoke.vpk`, a renderer diagnostic,
-not the game. It writes logs and a framebuffer readback to `ux0:data/rt64-fast/`
-and exits on Circle. The portable tests can be built directly from `lib/rt64` with
+not the game. It writes logs and framebuffer readbacks to `ux0:data/rt64-fast/`
+and exits on Circle. Captures at frames 2, 3, 4 and 30 distinguish initial from
+repeated reads. Four subsequent GPU-only RGBA16 images alternate red/blue with
+green/yellow; the diagnostic records how many returned pixels match the current
+image, the previous image, or zero. A successful API return alone is not a pixel
+correctness result. See [the Vulkan readback control](VITA_READBACK_VALIDATION.md).
+The portable tests can be built directly from `lib/rt64` with
 `-DRT64_FAST=ON -DRT64_FAST_TESTS=ON` and run as `src/fast/rt64_fast_tests`.
 
 The container builds vitaShaRK at the verified latest upstream commit
@@ -785,7 +790,7 @@ pinned vitaShaRK revision. The ROM and `ur0:data/libshacccg.suprx` shader compil
 must be supplied separately on the Vita. Removing diagnostics does not change the
 port's experimental compatibility status.
 
-Known validation issue: Vita3K presents the diagnostic correctly, but vitaGL's
+Known macOS validation issue: Vita3K presents the diagnostic correctly, but vitaGL's
 direct CPU `glReadPixels` path returns black for its offscreen framebuffer. Use
 Vita3K's native screenshot capture when checking presentation. CPU framebuffer
 readback remains a separate compatibility requirement.
@@ -794,11 +799,16 @@ readbacks while continuing through pause/resume and gameplay. This confirms the
 limitation affects game framebuffer copies as well as the small diagnostic; it
 does not establish correct pause backgrounds on Vita3K or physical Vita hardware.
 
-The installed macOS Vita3K run reports memory mapping as Disabled. The available
-local Vita3K source disables Vulkan memory mapping on Apple platforms and gates
-GPU surface synchronization on it (`renderer/src/vulkan/renderer.cpp` and
-`surface_cache.cpp`). This is consistent with the black CPU readback, but the
-local source revision differs from the installed app, so it is not an exact-binary
-root-cause proof. A GPU transfer call in that source also falls back to guest-memory
-copies when mapping is disabled; changing readback APIs alone is unlikely to fix
-that emulator path.
+The installed macOS app reports version `4074-496939b6` and memory mapping Disabled.
+Source at that reported revision disables Vulkan memory mapping on Apple platforms
+and gates GPU surface synchronization on it. A controlled Linux ARM64 run of the
+official CI build at the same revision now distinguishes the behavior: disabled
+mapping returns zero for every tested GPU read, while double-buffer mapping returns
+zero on the first read of each tested surface and correct pixels on subsequent
+frames. Alternating images confirm those later reads return current frame data.
+Both configurations retain Vulkan, normal synchronized vitaGL/RT64 readbacks, and
+surface synchronization enabled; their saved configs differ only in mapping mode.
+See [the inputs, results and source explanation](VITA_READBACK_VALIDATION.md).
+This establishes an emulator-dependent validation limit, not a completed readback
+fix. First reads, actual game effects on Linux, and physical Vita behavior remain
+unverified or failing as described there.

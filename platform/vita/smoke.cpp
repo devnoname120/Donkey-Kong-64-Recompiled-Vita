@@ -27,7 +27,7 @@ static void trace(const char *message) {
     if(fd>=0) { sceIoWrite(fd,message,std::strlen(message)); sceIoWrite(fd,"\n",1); sceIoClose(fd); }
 }
 
-static void capture() {
+static void capture(unsigned frame) {
     std::vector<uint8_t> rgba(320*240*4), rgb(320*240*3);
     glFinish();
     glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());
@@ -35,10 +35,62 @@ static void capture() {
     for(unsigned y=0;y<240;++y) for(unsigned x=0;x<320;++x) for(unsigned c=0;c<3;++c)
         rgb[(y*320+x)*3+c]=rgba[((239-y)*320+x)*4+c];
     const char header[]="P6\n320 240\n255\n";
-    SceUID fd=sceIoOpen("ux0:data/rt64-fast/frame.ppm",SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
+    char path[96];
+    if(frame==2) std::snprintf(path,sizeof(path),"ux0:data/rt64-fast/frame.ppm");
+    else std::snprintf(path,sizeof(path),"ux0:data/rt64-fast/frame-%u.ppm",frame);
+    SceUID fd=sceIoOpen(path,SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
     if(fd<0) throw std::runtime_error("Renderer smoke could not open readback output");
     sceIoWrite(fd,header,sizeof(header)-1); sceIoWrite(fd,rgb.data(),rgb.size()); sceIoClose(fd);
-    trace("Read back 320x240 offscreen framebuffer to frame.ppm");
+    unsigned colored=0;
+    for(size_t i=0;i<rgb.size();i+=3) colored+=rgb[i] || rgb[i+1] || rgb[i+2];
+    char message[160];
+    std::snprintf(message,sizeof(message),"Read back frame %u to %s: %u/76800 non-black pixels",frame,path,colored);
+    trace(message);
+}
+
+static void checkGPUReadback(RT64::FastDrawSink &sink,unsigned sequence) {
+    // Alternate known GPU-only images. Repeating a static image cannot expose
+    // readback of the previous frame, and CPU-owned images bypass this path.
+    constexpr uint32_t address=0x300000, width=64, height=64;
+    RT64::FastDraw draw;
+    draw.colorAddress=address; draw.width=width; draw.height=height;
+    draw.fill=true; draw.vertices.resize(6);
+    const unsigned corners[6]={0,1,2,0,2,3};
+    const float xy[4][2]={{0,0},{1,0},{1,1},{0,1}};
+    const std::array<float,4> colors[2][2]={
+        {{1,0,0,1},{0,0,1,1}}, {{0,1,0,1},{1,1,0,1}}
+    };
+    const uint16_t packed[2][2]={{0xf801,0x003f},{0x07c1,0xffc1}};
+    for(unsigned half=0;half<2;++half) {
+        draw.fillColor=colors[sequence&1][half];
+        for(unsigned i=0;i<6;++i) {
+            const auto &p=xy[corners[i]];
+            draw.vertices[i].position[0]=p[0]*2-1;
+            draw.vertices[i].position[1]=p[1]-half;
+        }
+        sink.draw(draw);
+    }
+    sink.fullSync();
+    std::vector<uint8_t> bytes;
+    if(!sink.readFramebuffer(address,width*height*2,bytes) || bytes.size()!=width*height*2)
+        throw std::runtime_error("GPU-owned framebuffer readback failed");
+    unsigned current=0,previous=0,zero=0;
+    for(unsigned y=0;y<height;++y) for(unsigned x=0;x<width;++x) {
+        const unsigned offset=(y*width+x)*2;
+        const uint16_t value=(uint16_t(bytes[offset])<<8)|bytes[offset+1];
+        current+=value==packed[sequence&1][y>=height/2];
+        previous+=value==packed[(sequence^1)&1][y>=height/2];
+        zero+=value==0;
+    }
+    char path[96],message[192];
+    std::snprintf(path,sizeof(path),"ux0:data/rt64-fast/gpu-readback-%u.rgba16",sequence);
+    SceUID fd=sceIoOpen(path,SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
+    if(fd<0) throw std::runtime_error("Could not open GPU readback output");
+    sceIoWrite(fd,bytes.data(),bytes.size()); sceIoClose(fd);
+    std::snprintf(message,sizeof(message),
+        "GPU readback %u: %u/4096 current, %u/4096 previous, %u/4096 zero pixels",
+        sequence,current,previous,zero);
+    trace(message);
 }
 
 int main() {
@@ -281,7 +333,10 @@ int main() {
                 if(frame==480) trace("Alias panel: left original red/blue; right keeps red top and blue lower-left, green on right from row three");
             }
             sink->fullSync();
-            if(frame==2) capture();
+            // Repeated captures distinguish a first-read synchronization failure
+            // from an unreadable surface. These frames use the same draw list.
+            if(frame==2 || frame==3 || frame==4 || frame==30) capture(frame);
+            if(frame>=60 && frame<64) checkGPUReadback(*sink,frame-60);
             sink->present(0x100000);
             if(frame==0) trace("First GBI fill and RGB triangle presented");
             if(frame==119) trace("120 frames presented successfully");
