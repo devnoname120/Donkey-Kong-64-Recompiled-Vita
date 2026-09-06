@@ -215,6 +215,16 @@ original blurred pause snapshot, resumed and continued movement/audio. The quiet
 ARM VPK also booted and rendered the DK Rap in Vita3K with Vulkan. Individual
 transition pixels and physical Vita framebuffer readbacks remain unverified.
 
+The zipper snapshot patches were reviewed as one dependency chain. Vita retains
+the original synchronized CPU copy, six-column alpha seam and DECALRGBA texture
+combiner. The desktop GPU snapshot, disabled CPU morpher and alpha-ignoring
+combiner are a different linked implementation. Generated-code checks cover
+single snapshot initialization, scene handoff, resource release, frame reuse and
+the seam's pixel mutations. A no-op morpher negative control fails. A focused
+GLES check verifies the original alpha-coverage mode without primitive-color
+tinting, both with and without batching. Full physical zipper animation and
+border appearance still require gameplay validation.
+
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
 fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,

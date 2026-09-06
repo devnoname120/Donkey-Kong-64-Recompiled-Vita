@@ -152,6 +152,33 @@ static void checkTextureUniformStateChanges(ProbeEGL &platform) {
     draw.textures[0]=smaller; draw.tiles[0].masks=0; draw.tiles[0].lrs=4;
     sample(1,{255,255,0,255});
 }
+static void checkZipperTextureAlpha(ProbeEGL &platform) {
+    for(bool merge:{false,true}) {
+        batching=merge;
+        auto sink=platform.createSink();
+        RT64::FastDraw draw; draw.colorAddress=0x6000; draw.width=draw.height=8; draw.colorBytes=4;
+        for(unsigned alpha:{0u,31u,32u,255u}) {
+            draw.fill=true; draw.fillColor={0,0,1,1};
+            quad(draw,-1,-1,1,1,{0,1,0,0}); sink->draw(draw);
+            auto texture=std::make_shared<RT64::FastTexture>();
+            texture->width=texture->height=1; texture->hash=0x100+alpha;
+            texture->rgba={255,0,0,uint8_t(alpha)};
+            draw.fill=false; draw.textures[0]=texture;
+            // Original DK64 zipper commands at 0x8070BAF4..0x8070BB1C:
+            // G_CC_DECALRGBA and alpha-to-coverage textured edges. Stale
+            // primitive/shade colors must not tint the snapshot or fill its seam.
+            draw.combine={0x00ffffff,0xfffcf279}; draw.primitive={0,1,0,0};
+            draw.otherMode={0x00553078,G_CYC_1CYCLE};
+            sink->draw(draw);
+            std::vector<uint8_t> actual;
+            if(!sink->readFramebuffer(draw.colorAddress,8*8*4,actual))
+                throw std::runtime_error("Zipper alpha framebuffer is missing");
+            for(unsigned p=0;p<64;++p)
+                if(actual[p*4]!=(alpha<32?0:255) || actual[p*4+1]!=0 || actual[p*4+2]!=(alpha<32?255:0))
+                    throw std::runtime_error("Original zipper alpha coverage or untinted texture color changed");
+        }
+    }
+}
 static void checkCPUScanout(ProbeEGL &platform) {
     batching=true;
     std::vector<uint32_t> memory(0x20000/4);
@@ -509,6 +536,7 @@ int main() {
         checkPresentation(*platform);
         checkUniformStateChanges(*platform);
         checkTextureUniformStateChanges(*platform);
+        checkZipperTextureAlpha(*platform);
         checkCPUScanout(*platform);
         checkReadback(*platform);
         checkColorImageAliases(*platform);
@@ -517,7 +545,7 @@ int main() {
         checkFramebufferMemoryChanges(*platform);
         checkRecordedFramebufferWrites(*platform);
         checkFramebufferFeedback(*platform);
-        std::puts("GL checks: batching, translucency, textures, VI, readback, recorded writes, shared depth and color-buffer aliases passed");
+        std::puts("GL checks: batching, translucency, textures, zipper alpha, VI, readback, recorded writes, shared depth and color-buffer aliases passed");
         return 0;
     } catch(const std::exception &e) { std::fprintf(stderr,"%s\n",e.what()); return 1; }
 }

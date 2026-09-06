@@ -236,11 +236,11 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_805FE398",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering; Run a special pre-world load framebuffer thing",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_450.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Execute the desktop GPU snapshot overlay before clearing the scene depth buffer",
+      "disposition": "retained_original",
+      "reason": "The sole added call renders overlay layer 0, introduced by the desktop rdpStoreFB replacement for CPU snapshots. Vita synchronizes and copies the original framebuffer instead, so it does not register that GPU snapshot callback. The original depth-clear commands are retained.",
+      "evidence": "Full reference-C diff plus the layer selector/reset in func_global_asm_8068C20C and the producer in patched func_global_asm_8070A848. All 70 generated direct overlay registrations use layers 1, 3, 5 or 7. dk64_zipper_checks exercises the generated snapshot caller/copy and verifies one capture per initialization; it models the renderer synchronization callback.",
+      "next_action": "Revisit together with snapshot registration if GPU overlay capture is introduced; physical snapshot/readback validation remains open in the 8070A848 row."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -266,31 +266,31 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_8070A934",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering; Release all overlays to prevent repeated snapshots",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Drive zipper scene handoff, snapshot selection and resource cleanup",
+      "disposition": "retained_original",
+      "reason": "The desktop changes clear the overlay list after its GPU capture, use stored_framebuffer and add interpolation matrix tags. Vita retains its allocated CPU snapshot and original overlay lifetime. Original MIPS confirms that initialization already falls through into rendering in the same call; the reference pseudocode misleadingly nests that work inside a switch case.",
+      "evidence": "Compared all 208 original instructions with the upstream body, including the branch convergence at 0x8070AA20. dk64_zipper_checks executes this driver plus actual 8070AF24 initialization and 8070A848 copying: frame-bank advance, one capture/allocation pair, requested map/exit, five deferred frees, model release, prior-mode restoration, countdown, completed-frame reuse and unchanged overlay count. Mesh rendering, map loading and resource parsing are modeled.",
+      "next_action": "Validate the complete closing/opening zipper during physical gameplay; this fixture proves the driver and ownership paths, not model animation or GPU snapshot pixels."
     },
     {
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_8070B05C",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Disable CPU changes to the zipper snapshot for the desktop GPU capture path",
+      "disposition": "retained_original",
+      "reason": "The empty desktop replacement belongs to its GPU snapshot/alpha-ignoring renderer. The original routine modifies only RGBA16 alpha in six center columns of the allocated CPU snapshot to form a zipper seam. Vita keeps this meaningful pixel effect and the texture-alpha combiner.",
+      "evidence": "Original 171-instruction routine, caller guard at 0x8070BCA4..0x8070BCBC (ticks 5 through 85), and the 24 halfword masks at VRAM 0x80755074 (decompressed ROM 0x02159D74 using the .global_asm mapping). dk64_zipper_checks compares every pixel across eight boundary/intermediate ticks with both alpha parities, RGB/neighbors and buffer guards. Replacing only the test-extracted routine with the upstream-style no-op fails; restoring it passes.",
+      "next_action": "Validate the visible seam through a complete physical-Vita zipper transition; keep this CPU mutation, copy ownership and alpha mode together if changing snapshot strategy."
     },
     {
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_8070AC74",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Reference C body available at lib/dk64_decomp/src/global_asm/code_10E1D0.c.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Expand the zipper display-list scissor and fill to the desktop full-screen bounds",
+      "disposition": "retained_original",
+      "reason": "The complete reference-C diff changes only the original 10,10..309,229 scissor to full dimensions and the fill endpoints from width/height minus one to width/height. Vita keeps the original fixed 320x240 4:3 presentation and overscan region; the segment, projection, color/depth setup and display-list ownership are unchanged.",
+      "evidence": "Compared the complete matching reference C in code_10E1D0.c with the patch and checked the fixed 4:3 fast-renderer presentation. The zipper driver regression models this display-list builder and does not claim a rendered border test.",
+      "next_action": "Inspect zipper borders on physical Vita; revisit these viewport choices if adding a widescreen presentation mode."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -306,11 +306,11 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_80709BC4",
       "compiled": true,
-      "purpose": "Framebuffer-snapshot artifact and color-state correction",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Ignore snapshot alpha and initialize primitive white for the desktop zipper renderer",
+      "disposition": "retained_original",
+      "reason": "The new MODULATEI_PRIM combiner ignores texture alpha and therefore also requires the added white primitive color. The original caller supplies DECALRGBA, which uses texture RGB/alpha directly and ignores stale primitive color. Vita retains it for the CPU-generated alpha seam; importing the desktop pair would erase that effect.",
+      "evidence": "Compared the 407 original instructions and upstream mesh/texture command construction. Original caller 8070B7EC emits FCFFFFFF/FFFCF279 with mode 0x00553078 at 0x8070BAF4..0x8070BB1C. rt64_gl_checks renders those exact modes with stale green primitive/shade colors, alpha 0/31/32/255, and batching off/on; transparent samples preserve the background and visible samples remain untinted. Original CPU seam checks also pass. Mesh animation and later-map appearance are not established by this focused GL check.",
+      "next_action": "Validate complete zipper geometry and seam appearance on physical Vita; keep the alpha-ignoring combiner paired only with a deliberately changed snapshot path."
     },
     {
       "source": "patches/patches_framebuffer.c",

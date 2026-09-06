@@ -99,6 +99,13 @@ add_generated_check_function(dk64_framebuffer_effect_checks func_global_asm_8062
 target_include_directories(dk64_framebuffer_effect_checks PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_framebuffer_effect_checks COMMAND dk64_framebuffer_effect_checks)
+add_executable(dk64_zipper_checks ../vita/test_zipper.cpp)
+foreach(symbol func_global_asm_8070A934 func_global_asm_8070AF24 func_global_asm_8070A848 func_global_asm_8070B05C)
+    add_generated_check_function(dk64_zipper_checks ${symbol})
+endforeach()
+target_include_directories(dk64_zipper_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_zipper_checks COMMAND dk64_zipper_checks)
 add_executable(dk64_decompression_queue_checks ../vita/test_decompression_queue.cpp)
 add_generated_check_function(dk64_decompression_queue_checks getPointerTableFile)
 add_generated_check_function(dk64_decompression_queue_checks func_global_asm_8066AF40)
