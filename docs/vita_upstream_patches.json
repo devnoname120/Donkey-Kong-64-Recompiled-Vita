@@ -56,11 +56,11 @@
       "source": "patches/boot_logos_patches.c",
       "function": "func_menu_8003292C",
       "compiled": true,
-      "purpose": "Boot/logo rendering and initialization events",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "CPU-only VI scanout now passes host RGBA16/32 and native Vulkan diagnostic checks. The original logo sequence/timing is not yet verified; early game screenshots did not establish the red-logo presentation.",
-      "next_action": "Trace boot VI visibility, CPU image contents and timing; distinguish logo-rendering fixes from desktop event/viewport features before marking this replacement accounted for."
+      "purpose": "Adapt the Dolby Surround licensing card from 480i to 240p",
+      "disposition": "equivalent",
+      "reason": "Vita carries upstream's 240p logo rectangle size, doubled texture-coordinate derivatives and three printText positions/scales. The original texture and string requests, four I4 tile loads and fade timer remain. The desktop extended-GBI enable, extended-RDRAM and rectangle-aspect commands are omitted for the classic Fast path at 4:3. The upstream Rare-logo comment names the preceding animated logo; a targeted host capture identifies texture 0xB0 as the Dolby Surround card.",
+      "evidence": "Nine instruction replacements and four hooks in us.vita.toml adapt the actual generated entry. Its Fast F3DEX2/GLES regression fails on the old logo sampling and legal-text arguments, then passes across fade boundaries and batching modes. The rendered logo is 102 by 40 pixels, matching upstream's two 20-pixel tile rows; its centering uses the nominal 41-pixel half-height. Commands and asset/text callback arguments match compiled upstream in 2304 cases covering every fade byte and nine font-metric combinations after removing only the four desktop extended commands. The font callbacks are modeled, so this does not prove native glyph appearance. A targeted host GLES capture at graphics task 280 shows the actual Dolby logo and all three text lines at the corrected layout, followed by the DK Rap. The quiet Vita3K/Vulkan run also reaches the Rap, but its timed screenshots miss this card.",
+      "next_action": "Validate the Dolby card on physical Vita, including text readability and fade timing; keep the 240p mode selection and matching layout together."
     },
     {
       "source": "patches/boot_logos_patches.c",

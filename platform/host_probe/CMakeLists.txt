@@ -80,6 +80,17 @@ add_test(NAME dk64_timing_checks COMMAND dk64_timing_checks)
 add_executable(dk64_boot_logo_checks ../vita/boot.cpp ../vita/test_boot_logo.cpp)
 target_include_directories(dk64_boot_logo_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_boot_logo_checks COMMAND dk64_boot_logo_checks)
+add_executable(dk64_vi_mode_checks ../vita/test_vi_mode.cpp)
+target_include_directories(dk64_vi_mode_checks PRIVATE
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include"
+    "${repo}/lib/N64ModernRuntime/librecomp/include"
+    "${repo}/lib/N64ModernRuntime/librecomp/include/librecomp"
+    "${repo}/lib/N64ModernRuntime/ultramodern/include"
+    "${repo}/lib/N64ModernRuntime/thirdparty"
+    "${repo}/lib/N64ModernRuntime/thirdparty/concurrentqueue")
+target_link_options(dk64_vi_mode_checks PRIVATE -Wl,--gc-sections)
+target_link_libraries(dk64_vi_mode_checks PRIVATE pthread)
+add_test(NAME dk64_vi_mode_checks COMMAND dk64_vi_mode_checks)
 add_executable(dk64_gameplay_fix_checks ../vita/gameplay_fixes.cpp ../vita/test_gameplay_fixes.cpp)
 target_include_directories(dk64_gameplay_fix_checks PRIVATE "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_gameplay_fix_checks COMMAND dk64_gameplay_fix_checks)
@@ -177,6 +188,13 @@ if(PROBE_GL)
     target_link_libraries(dk64_overlay_checks PRIVATE rt64 librecomp PkgConfig::EGL)
     add_test(NAME dk64_overlay_checks COMMAND dk64_overlay_checks)
     set_tests_properties(dk64_overlay_checks PROPERTIES ENVIRONMENT "GALLIUM_DRIVER=softpipe")
+    add_executable(dk64_boot_legal_checks ../vita/test_boot_legal.cpp egl.cpp)
+    add_generated_check_function(dk64_boot_legal_checks func_menu_8003292C)
+    target_include_directories(dk64_boot_legal_checks PRIVATE "${repo}/include" "${generated}"
+        "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+    target_link_libraries(dk64_boot_legal_checks PRIVATE rt64 PkgConfig::EGL)
+    add_test(NAME dk64_boot_legal_checks COMMAND dk64_boot_legal_checks)
+    set_tests_properties(dk64_boot_legal_checks PROPERTIES ENVIRONMENT "GALLIUM_DRIVER=softpipe")
     add_executable(dk64_environment_overlay_checks ../vita/test_environment_overlays.cpp ../vita/overlays.cpp egl.cpp)
     foreach(symbol func_global_asm_80701CA0 func_global_asm_8068D264 func_global_asm_805FCFD8)
         add_generated_check_function(dk64_environment_overlay_checks ${symbol})

@@ -272,6 +272,33 @@ caller's state behavior. These results support retaining the original paths;
 actual prop/fluid geometry, lens-flare pixels and following overlays still need
 gameplay validation on physical Vita.
 
+The static Dolby Surround logo and legal text now carry upstream's matching 240p layout.
+The previous Vita path selected 240p but retained the 480i drawing dimensions.
+The logo uses four 51-by-20-pixel tiles with doubled texture derivatives; all
+three strings use the upstream `printText` positions and scales. The original
+texture/string requests and fade timer remain. The generated-entry GLES check
+fails before the hooks and passes afterward for logo pixels, text arguments,
+asset requests and caller state. Commands and callbacks also match compiled
+upstream in 2304 fade/font-metric cases after omitting its four desktop extended
+commands. Font rendering is modeled in these checks, so native text appearance
+needs separate visual validation. A targeted host GLES capture at task 280 shows
+the actual Dolby Surround image and all three text lines, followed by the DK Rap.
+This identifies the card more accurately than upstream's Rare-logo comment,
+which names the preceding animated logo. A 70-second host run completes 1969
+graphics tasks and 2054 audio buffers. The quiet Vita3K/Vulkan build also reaches
+the Rap, but its screenshots miss the short Dolby card. Its save hashes and
+quiet log remain unchanged. Physical-Vita appearance is still unverified.
+
+The VI-mode query now comes from N64ModernRuntime's current, latched VI state.
+The old Vita helper read a stale guest libultra context and the wrong byte of
+its mode structure. The original instruction at 0x80008D5C reads byte zero;
+the runtime's word-swapped `OSViMode` layout already handles that byte order.
+DK64's `func_global_asm_806C7D40` uses this query to decide whether to double
+viewport coordinates. A regression using the actual VI setter, latch and query
+fails with the old helper and passes with the runtime implementation, checking
+pending versus current modes, the native dummy mode, byte order and caller
+state. This does not establish interlaced scanout support.
+
 Pause-page navigation also retains the original switcher. Its page wrap,
 alternating buffers, slide clamp, completion flags and sound/redraw arguments
 match compiled upstream in 864 paired boundary cases. The desktop addition is

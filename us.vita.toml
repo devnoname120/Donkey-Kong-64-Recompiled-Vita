@@ -292,6 +292,65 @@ func = "func_global_asm_8060F254"
 vram = 0x8060F4F4
 value = 0x00000000
 
+# Carry upstream's 240p Dolby/legal layout while retaining the original asset
+# loads and four I4 texture tiles. Texture coordinates advance twice as fast;
+# the screen tiles are 51 by 20 pixels, as in boot_logos_patches.c.
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032AD4
+value = 0x3C014224 # lui at,0x4224 (41.0f)
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032AE0
+value = 0x3C0142CC # lui at,0x42cc (102.0f)
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032B40
+value = 0x25060014 # addiu a2,t0,20
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032C84
+value = 0x25850033 # addiu a1,t4,51
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032CE8
+value = 0x3C180800 # lui t8,0x0800
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032CF0
+value = 0x37180800 # ori t8,t8,0x0800
+
+# Upstream uses printText for all three strings, with its 240p positions/scales.
+# The first hook skips the old printStyledText call and its argument delay slot.
+[[patches.hook]]
+func = "func_menu_8003292C"
+before_vram = 0x80032E40
+text = "{ extern void printText(uint8_t*, recomp_context*); ctx->r5 = (int16_t)(ctx->r6 + 330); ctx->r6 = (int16_t)(ctx->r7 + 105); ctx->r7 = 0x3f000000; printText(rdram, ctx); goto dk64_vita_legal_after_heading; }"
+[[patches.hook]]
+func = "func_menu_8003292C"
+before_vram = 0x80032E48
+text = "dk64_vita_legal_after_heading:;"
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032E4C
+value = 0x3C013E80 # lui at,0x3e80 (0.25f)
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032E98
+value = 0x3C073E80 # lui a3,0x3e80 (0.25f)
+[[patches.hook]]
+func = "func_menu_8003292C"
+before_vram = 0x80032EB8
+text = "ctx->r14 = (int16_t)(ctx->r14 + 330);"
+[[patches.instruction]]
+func = "func_menu_8003292C"
+vram = 0x80032EF4
+value = 0x3C073E80 # lui a3,0x3e80 (0.25f)
+[[patches.hook]]
+func = "func_menu_8003292C"
+before_vram = 0x80032F14
+text = "ctx->r5 = (int16_t)(ctx->r5 + 330); ctx->r24 = SUB32(ctx->r24, 0x000f0000);"
+
 # Match patches_main.c: the Nintendo logo also uses the normal 320x240 mode.
 # This changes only the value subsequently stored to the byte at 0x8074450C.
 [[patches.instruction]]

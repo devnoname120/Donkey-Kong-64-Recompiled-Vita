@@ -58,8 +58,3 @@ extern "C" void __f_to_ull_recomp(uint8_t *,recomp_context *ctx) {
 extern "C" void __osSpSetStatus_recomp(uint8_t *,recomp_context *) {
     // SP completion is managed by N64ModernRuntime's task queue.
 }
-extern "C" void osViGetCurrentMode_recomp(uint8_t *rdram,recomp_context *ctx) {
-    const gpr current=gpr(int32_t(MEM_W(0,0xffffffff80010190ULL)));
-    const gpr mode=current?gpr(int32_t(MEM_W(8,current))):0;
-    ctx->r2=mode?MEM_BU(3,mode):0;
-}
