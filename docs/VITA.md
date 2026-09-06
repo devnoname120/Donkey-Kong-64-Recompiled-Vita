@@ -758,9 +758,10 @@ The regular `DK64Recompiled.vpk` is produced with this option **OFF** (the defau
 `DK64_VITA_SCRIPTED_PAUSE=ON` exercises two pause/resume cycles in the native probe.
 The scripted build records the first eight game-requested framebuffer byte arrays
 in its own data directory without issuing extra reads. These captures are absent
-from the regular game build. The Linux Vulkan probe has now shown a black first
-pause background and a correctly blurred second pause background in DK's house,
-followed by resume; see [the native readback evidence](VITA_READBACK_VALIDATION.md#dk64-pause-and-resume).
+from the regular game build. The Linux Vulkan probe now shows correctly blurred
+first and second pause backgrounds in Training Grounds with external-host mapping
+on Mesa llvmpipe. A matched double-buffer run with the same VPK and saves produces
+black captures; see [the native comparison](VITA_READBACK_VALIDATION.md#matched-dk64-pause-comparison).
 
 `DK64_VITA_PROBE_MAP=101` adds a one-time map request to that separate scripted
 title after Adventure becomes playable in Training Grounds or DK's house. Values
@@ -923,10 +924,10 @@ Known macOS validation issue: Vita3K presents the diagnostic correctly, but vita
 direct CPU `glReadPixels` path returns black for its offscreen framebuffer. Use
 Vita3K's native screenshot capture when checking presentation. CPU framebuffer
 readback remains a separate compatibility requirement.
-The native game probe also returned zero colored pixels for all three 320x240
+The macOS native game probe also returned zero colored pixels for all three 320x240
 readbacks while continuing through pause/resume and gameplay. This confirms the
 limitation affects game framebuffer copies as well as the small diagnostic; it
-does not establish correct pause backgrounds on Vita3K or physical Vita hardware.
+does not establish correct pause backgrounds on that configuration or physical Vita hardware.
 
 The installed macOS app reports version `4074-496939b6` and memory mapping Disabled.
 Source at that reported revision disables Vulkan memory mapping on Apple platforms
@@ -938,9 +939,15 @@ frames. Alternating images confirm those later reads return current frame data.
 Both configurations retain Vulkan, normal synchronized vitaGL/RT64 readbacks, and
 surface synchronization enabled; their saved configs differ only in mapping mode.
 See [the inputs, results and source explanation](VITA_READBACK_VALIDATION.md).
-The game probe confirms the distinction in actual pause rendering: its first
-capture is black, while the second capture of the same buffer produces the blurred
-room background and resumes successfully. Earlier game reads can also return stale
-CPU content, including the Nintendo boot logo, rather than zero. This establishes
-an emulator-dependent validation limit, not a completed readback fix. First-read
-correctness, other game effects, and physical Vita behavior remain open.
+An external-host control now provides a working first-read route on this Linux
+llvmpipe device: all four alternating-pattern reads, including the first, match
+the current GPU image exactly. The matched current DK64 probe also captures the
+menu and intro images and shows correctly blurred first/second pauses in Training
+Grounds, followed by resume. Double-buffer mapping produces black game captures
+with the same VPK and input saves. The external-host route relies on the Vulkan
+host-memory extension and the Linux driver-specific synchronization policy; it is
+not available on the tested macOS configuration. Page-table mapping aborted before
+producing an image. See [the mapping and gameplay controls](VITA_READBACK_VALIDATION.md#external-host-mapping-control).
+No game or emulator code workaround was added. The full game still emits emulator
+memory-fault messages while continuing, and other effects, audio quality in this
+configuration and physical Vita behavior remain open validation work.

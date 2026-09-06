@@ -249,8 +249,8 @@
       "purpose": "Make rendered framebuffer data available to CPU effects",
       "disposition": "partial",
       "reason": "Vita retains the original copy/morph and synchronizes its source through the graphics queue. This differs from upstream GPU-overlay snapshots.",
-      "evidence": "Host readback/feedback tests and pause-image checks. The native Linux ARM probe with Vita3K 4074-496939b6, Vulkan and double-buffer mapping records only game-requested bytes: first reads contain a stale Nintendo logo or black pixels; a second pause at the same address returns the room image and visibly produces the original blurred background, followed by resume. Disabled mapping remains black in the renderer control. See docs/VITA_READBACK_VALIDATION.md for raw-capture counts, native screenshots and proof limits.",
-      "next_action": "Validate first-read correctness, other CPU framebuffer effects and physical-Vita copies, including the requested speedhack variant; the repeated-pause result does not resolve those limits."
+      "evidence": "Host readback/feedback and complete photograph-pixel checks pass. A matched native Linux ARM64 Vita3K 4074-496939b6/Vulkan comparison with the same current VPK and saves gives black transition/pause captures under double-buffer mapping, but current menu/intro images and blurred first/second pauses in Training Grounds under external-host mapping on Mesa llvmpipe. The unchanged renderer diagnostic also returns exact current pixels on all four reads, including the first. See VITA_READBACK_VALIDATION.md.",
+      "next_action": "Validate other CPU framebuffer effects and physical-Vita copies, including the requested speedhack variant. The working Linux mapping is driver-specific, and emulator memory-fault messages remain in the full-game log."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -400,7 +400,7 @@
       "disposition": "partial",
       "reason": "A hook synchronizes the selected framebuffer before the original CPU photo loop. The original allocation and texture-only fallback remain; desktop static photo storage is not imported.",
       "evidence": "dk64_photo_capture_checks validates the generated source selection/crop, allocation, fallback and guest stack. dk64_photo_pipeline_checks also executes the actual converter and native bridge against GPU-rendered GLES images: all 8 photographs match across both framebuffer aliases, first reads, redraws and batching modes; every RGBA16 color matches the sepia curve. See VITA_READBACK_VALIDATION.md.",
-      "next_action": "Validate camera activation, fairy recognition, photograph lifetime and physical-Vita pixels in gameplay. Host pixel-pipeline checks do not resolve Vita3K first-read failures or establish Vita-side execution."
+      "next_action": "Use the validated Linux Vulkan/external-host route to test camera activation, fairy recognition and photograph lifetime, then verify physical-Vita pixels. Host photograph checks and native pause captures do not establish those gameplay behaviors or Vita-side color conversion."
     },
     {
       "source": "patches/patches_heap.c",
