@@ -199,7 +199,7 @@ timer consumer to avoid overwriting adjacent overlay data.
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
 
-The eleven host checks include caller-register/stack preservation, save
+The twelve host checks include caller-register/stack preservation, save
 eligibility, actor selection/compaction, actual generated deferred-free and photo
 capture routines, and minigame timing boundaries. The removed-check and photo
 tests failed before their hooks were added. Photo testing isolates the game's
@@ -351,6 +351,33 @@ intervals ending at tasks 600/720/840/960 fell from 125.70/126.62/127.54/124.65 
 to 121.11/122.14/122.82/120.70 ms. Uniform caching alone did not materially
 improve those intervals. This is a modest result from one emulator comparison,
 not a physical-Vita FPS claim; demanding scenes and audio still need work.
+
+Further native stage sampling identified texture decoding and TMEM loading as
+the dominant work in demanding intro scenes. RT64 now retains ordinary decoded
+textures in a 2 MiB cache across reloads, with exact layout/content comparison
+after hashing. Framebuffer-backed and mixed loads bypass it. Aligned ordinary
+TMEM uploads use word transfers with the original bank split and row swap;
+the existing byte path handles the remaining cases. The complete source span
+is validated before arithmetic is narrowed to the 32-bit target.
+
+The renderer's core tests now run alongside the other host checks under ASan.
+They compare repeated cached decodes with fresh decodes across formats and
+palettes, force content/layout index collisions, exercise eviction and retained
+references, reject oversized cache entries and invalid transfer spans, and
+compare aligned transfers with equal logical bytes at unaligned addresses.
+GPU-only and mixed-TMEM tests check that CPU cache reuse cannot bypass provenance.
+The stage sampler was temporary and has been removed from the source.
+
+With the sampler removed and the same warm shader-cache configuration, the
+renderer intervals ending at tasks 600/720/840/960 measured
+45.82/46.13/46.25/46.41 ms, versus 121.11/122.14/122.82/120.70 ms before the
+texture changes: roughly 62% less renderer processing time in those intervals.
+This is an emulator renderer measurement, not physical-Vita FPS. A 70-second
+host Adventure run reached Training Grounds and completed 1,985 graphics tasks
+and 2,012 audio buffers. The extended sampled native attract-mode run exceeded
+19,000 graphics tasks. Native game inputs were not injected and save hashes
+were unchanged. Broader gameplay, audio quality and hardware performance remain
+open validation work.
 
 CPU framebuffer requests share an ordered graphics-queue producer with display
 lists. A two-thread regression reproduces a readback overtaking an earlier task
