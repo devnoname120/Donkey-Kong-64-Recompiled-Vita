@@ -296,11 +296,11 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_80706F90",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Expand scrolling menu-background tiling/scissor and filter the desktop expanded-aspect image",
+      "disposition": "retained_original",
+      "reason": "Original MIPS already advances X/Y offsets at 0x80754F70/0x80754F74 by four and wraps at 512; the new menuXShift/menuYShift storage is not a missing animation fix. Its four-by-three repeats of a 128-pixel pattern cover the original 320x240 view across the scroll range. Retain the original point filter/scissor and cached eight textures. Desktop changes add extra tiling, extended-scissor commands and bilinear filtering for the expanded-aspect menu issue.",
+      "evidence": "Inspected the original 479 instructions and compared 20 offset/wrap/vertical-shift cases with compiled upstream: scroll updates and eight texture loads agree; the original emits 96 texture rectangles versus 240 upstream at 320x240. Commit a8037cf changes only the filter and names issue https://github.com/Rainchus/Donkey-Kong-64-Recompiled/issues/42, whose report concerns Expanded aspect ratio. This comparison does not establish every menu pixel.",
+      "next_action": "Check submenu scrolling at the native 4:3 view; revisit tiling/scissor/filter as a unit if expanded aspect ratio is added."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -316,31 +316,31 @@
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_80704B20",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Tag skybox color-blend matrices for desktop interpolation and aspect handling",
+      "disposition": "retained_original",
+      "reason": "The Vita renderer has no interpolated matrix history and uses the original fixed 4:3 projection. Retain the original sky colors, view/environment tint, underwater darkening, transform inputs and eight-vertex draw path without the desktop matrix-group commands.",
+      "evidence": "Compared original generated MIPS and the compiled upstream replacement with their own ROM/patch constants loaded. All 64 cases (eight styles, both banks, tint lookup/override, darkening and interpolation flags) match scalar helper inputs, matrix results and all 24 ordinary display-list commands after the added matrix tags are removed. Math/rotation/tint helpers are modeled; this is not a rendered scene test.",
+      "next_action": "Validate representative sky colors and underwater views in gameplay; revisit the omitted tags if renderer interpolation or aspect modes are added."
     },
     {
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_807069A4",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Scale textured skybox transforms for desktop aspect ratios and tag interpolation",
+      "disposition": "retained_original",
+      "reason": "The added horizontal scale is width*3/(height*4), equal to one at Vita's fixed 4:3 view. Retain the original texture loading, pan/wrap/split calculations, rotation and tile drawing; desktop matrix-group tags have no consumer in this renderer.",
+      "evidence": "Original and compiled-upstream generated routines matched in all 64 fixed-4:3 comparison cases after matrix tags were removed: both texture-cache states and banks, positive/negative pan, zoom/wrap inputs, helper arguments, matrix results and ordinary commands. UI dimensions, matrix helpers, texture splitting and draws are modeled, so the actual race/bonus sky pixels are not established.",
+      "next_action": "Validate Aztec Beetle Race and bonus backgrounds in gameplay; recompute horizontal coverage if a wider aspect is introduced."
     },
     {
       "source": "patches/patches_framebuffer.c",
       "function": "func_global_asm_80707980",
       "compiled": true,
-      "purpose": "Framebuffer effects, snapshots and background rendering; Change chunk checks",
-      "disposition": "review_required",
-      "reason": "No complete equivalent is recorded in the Vita build. The patch mixes changes that must be assessed against the original function before its omission can be approved.",
-      "evidence": "Compiled replacement verified upstream; no patch-specific Vita runtime evidence. Only nonmatching/pseudocode or generated-MIPS comparison is available.",
-      "next_action": "Review this function and its helper/data dependencies; carry applicable behavior and record focused validation."
+      "purpose": "Always draw Galleon sky and extend desktop fallback-background fill endpoints",
+      "disposition": "partial",
+      "reason": "A single instruction patch removes the optional-sky rejection at 0x80707B5C, carrying the upstream Galleon correction for chunks 0, 6, 7 and 8 while retaining style/view tint. Other maps retain their original dispatch and fill endpoints: this backend already implements fill-cycle inclusive lower-right bounds, so the desktop endpoint extension is not imported.",
+      "evidence": "Compared original and compiled upstream dispatch across 216 map IDs and seven chunk samples (1512 cases). Beyond the explicit one-pixel fill endpoint extension, the only consumed-helper differences were the four Galleon sky omissions. dk64_skybox_checks fails before the instruction patch and passes afterward, covering 252 Galleon chunk/override/view combinations, caller state and representative Japes, Beetle Race and fallback backgrounds. Render helpers are modeled.",
+      "next_action": "Validate affected Galleon sky regions on physical Vita and in an actual scene run; the generated-code regression proves sky dispatch/arguments, not final pixels."
     },
     {
       "source": "patches/patches_heap.c",

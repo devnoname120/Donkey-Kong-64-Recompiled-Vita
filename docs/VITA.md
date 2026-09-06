@@ -225,6 +225,15 @@ GLES check verifies the original alpha-coverage mode without primitive-color
 tinting, both with and without batching. Full physical zipper animation and
 border appearance still require gameplay validation.
 
+The Galleon sky hook also carries the upstream fix for chunks 0, 6, 7 and 8,
+preserving their existing style/tint parameters. Its generated-code regression
+failed before the one-instruction patch and covers chunk, override and view
+variants afterward. Other maps keep their original background dispatch and
+inclusive fill-cycle bounds. Direct comparisons against the compiled upstream
+skybox functions found matching blend/textured-sky calculations at 4:3 after
+desktop matrix tags were removed. Helpers are modeled in those comparisons;
+actual Galleon, race and bonus sky pixels still need gameplay validation.
+
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
 fills all 192 entries with mixed raw/compressed jobs, checks the overflow guard,

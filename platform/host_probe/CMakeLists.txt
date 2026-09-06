@@ -106,6 +106,11 @@ endforeach()
 target_include_directories(dk64_zipper_checks PRIVATE "${repo}/include" "${generated}"
     "${repo}/lib/N64ModernRuntime/N64Recomp/include")
 add_test(NAME dk64_zipper_checks COMMAND dk64_zipper_checks)
+add_executable(dk64_skybox_checks ../vita/test_skybox.cpp)
+add_generated_check_function(dk64_skybox_checks func_global_asm_80707980)
+target_include_directories(dk64_skybox_checks PRIVATE "${repo}/include" "${generated}"
+    "${repo}/lib/N64ModernRuntime/N64Recomp/include")
+add_test(NAME dk64_skybox_checks COMMAND dk64_skybox_checks)
 add_executable(dk64_decompression_queue_checks ../vita/test_decompression_queue.cpp)
 add_generated_check_function(dk64_decompression_queue_checks getPointerTableFile)
 add_generated_check_function(dk64_decompression_queue_checks func_global_asm_8066AF40)

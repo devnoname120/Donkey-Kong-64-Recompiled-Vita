@@ -138,6 +138,14 @@ func = "func_global_asm_80629300"
 before_vram = 0x8062A010
 text = "ctx->f8.d = (double)dk64_vita_effect_half_lag;"
 
+# Carry patches_framebuffer.c's Galleon sky fix. The original chunk 0/6/7/8
+# paths reach this optional-sky rejection branch; removing it preserves their
+# existing sky style/tint and leaves every other map's dispatch unchanged.
+[[patches.instruction]]
+func = "func_global_asm_80707980"
+vram = 0x80707B5C
+value = 0x00000000
+
 [[patches.hook]]
 func = "func_dk64_boot_800005A8"
 text = """{
