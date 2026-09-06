@@ -9,10 +9,12 @@
 
 extern "C" void yield_self(uint8_t *rdram);
 extern "C" void dk64_vita_notify_audio(uint8_t *rdram,uint32_t queue) {
-    // Match timing_fixes.c: delayed timer messages can race with audio task
-    // completion under load. Keep at most one pending audio wakeup instead.
+    // The upstream direct notification also needs an idle receiver here. A
+    // catch-up VI can arrive after the audio thread consumes its wakeup but
+    // before it builds the next task. A second notification in that window
+    // lets it build ahead of the scheduler and wait for an unstarted task.
     const int32_t mq=static_cast<int32_t>(queue);
-    if(MEM_W(8,mq)==0) osSendMesg(rdram,mq,5,OS_MESG_NOBLOCK);
+    if(MEM_W(8,mq)==0 && MEM_W(0,mq)!=0) osSendMesg(rdram,mq,5,OS_MESG_NOBLOCK);
 }
 extern "C" void dk64_vita_frame_wait(uint8_t *rdram) {
 #if DK64_VITA_DIAGNOSTICS

@@ -77,7 +77,8 @@ port: recompiled DK64 produces original N64 commands in word-swapped RDRAM.
   establishes generated/submitted audio, not a full audible quality check.
   A device-buffer reserve now removes recurring approximately 21 ms underruns
   in the tested intro interval, including the quiet Vulkan Vita3K build. Longer
-  stalls and an intermittent production stop remain open; see
+  stalls remain open. An idle-receiver guard fixes a separately captured audio
+  production deadlock during catch-up VIs; see
   [audio queue validation](VITA_AUDIO_VALIDATION.md).
 - The fast draw interface accepts RT64's existing VI state. GL presentation uses
   its visibility, gamma, and field-address calculations. Deterministic host GLES
@@ -171,14 +172,17 @@ benefit. The diagnostic clock report is absent when diagnostics are disabled.
 
 The upstream `timing_fixes.c` audio-wakeup race fix is also required on Vita.
 The original delayed timer allowed the audio thread to wait for a task that was
-never submitted while graphics continued. The Vita hook now sends message 5
-directly only when the audio queue is empty, matching the desktop patch. A
+never submitted while graphics continued. The Vita hook sends message 5
+directly, carrying the desktop patch. A
 30-second host GL run with a deliberate 33 ms presentation delay delivered only
 13 audio buffers before the fix and 202 with it. Native Vita3K traces stopped
 after one to three buffers before the fix; the updated run passed 1,080 audio
-task submissions. These runs establish improved liveness for those schedules;
-a later capture still observed an intermittent production stop while graphics
-continued. Audio buffers also run empty during expensive graphics work. See
+task submissions. A later native event capture found that the empty-queue guard
+alone still allows a catch-up VI to notify an already active audio thread. The
+hook now also requires a receiver waiting on the notification queue. A generated
+audio-loop regression reproduces the old deadlock and passes with this guard;
+the native repeat passes the captured failure point. Audio buffers still run
+empty during expensive graphics work. See
 [the current evidence and limits](VITA_AUDIO_VALIDATION.md). The host probe now
 reports audio delivery and requires at least 120 audio
 buffers as well as 120 graphics tasks, preventing startup-only audio from being

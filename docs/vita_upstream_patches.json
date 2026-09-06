@@ -1668,9 +1668,9 @@
       "compiled": true,
       "purpose": "VI deadlines and guarded audio wakeups",
       "disposition": "equivalent",
-      "reason": "Native hooks preserve pending presentations until their deadline and replace the delayed audio timer with a message only when the queue is empty.",
-      "evidence": "Host slowed run: 13 audio buffers before vs 202/203 after in 30 s. Native trace passes 1080 audio submissions; underruns remain under graphics load.",
-      "next_action": "Address remaining scheduling/rendering stalls without reinstating duplicate or delayed audio notifications."
+      "reason": "Native hooks preserve pending presentations until their deadline and replace the delayed audio timer with a direct notification. The Vita notification additionally requires a receiver waiting on the empty queue, preventing a catch-up VI from waking an already active audio thread.",
+      "evidence": "A native Vulkan event capture under a 1.5-CPU scheduling limit stops at 47.330 seconds: two valid tasks remain unstarted after an extra notification. dk64_audio_wakeup_checks replays that interleaving through the generated audio loop: the old guard stalls after 3 builds/1 completion, while the idle-receiver guard completes 120 tasks. The fixed 90-second native repeat has no two-second submission stop; its producer capture continues past 71 seconds. See VITA_AUDIO_VALIDATION.md.",
+      "next_action": "Continue broader audio continuity and hardware validation; preserve the idle-receiver condition when changing notification or scheduling behavior."
     },
     {
       "source": "patches/timing_fixes.c",

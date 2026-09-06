@@ -2,9 +2,10 @@
 
 The frontend now reserves one actual SDL device buffer when reporting queued
 audio to DK64. This removes the recurring approximately 21 ms silent gaps in the
-tested Vulkan Vita3K intro playback. Longer transient gaps and an intermittent
-audio-production stop remain separate open issues. This is not physical-Vita
-audio-quality or complete gameplay validation.
+tested Vulkan Vita3K intro playback. An idle-receiver guard also fixes a captured
+audio-production deadlock during catch-up VIs. Longer transient gaps and broader
+audio stability remain open. This is not physical-Vita audio-quality or complete
+gameplay validation.
 
 ## Cause and change
 
@@ -83,7 +84,7 @@ reserve: 210 runs of 30 seconds. After a two-second startup allowance, the
 original 1,024-frame configuration accumulates 504,088 padding frames across its
 35 runs. All reserve-enabled runs have zero padding, with a maximum queue of
 2,760 frames. Synthesis and operating-system scheduling are outside this fixture.
-All 25 host checks, including the ASan capture checks, passed.
+All 26 host checks, including the ASan capture and wakeup checks, passed.
 
 The quiet ELF was checked for disabled diagnostics, scripted input, capture,
 profiling and renderer tracing; capture/wrapper symbols, diagnostic strings and
@@ -100,11 +101,76 @@ enabled. CMake rejects audio capture in quiet or scripted-input configurations.
   a roughly 459 ms gap in the fixed diagnostic capture.
 - In `pulse-run3`, an earlier baseline capture stopped producing new game PCM
   after process time 14.651 seconds while graphics continued. Repeating the same
-  VPK in `pulse-run4` produced the full 60-second sample capture. The cause is
-  unresolved; the upstream wakeup fix alone is not proof of audio liveness under
-  every schedule. The buffer reserve is not claimed to fix this intermittent stop.
+  VPK in `pulse-run4` produced the full 60-second sample capture. That run did not
+  capture scheduler events, so its cause cannot be assigned retrospectively.
+  The separately traced deadlock below is fixed; longer-run liveness remains a
+  validation requirement.
 - Audible fidelity, sound-menu behavior, gameplay continuity and physical-Vita
   latency/playback still require validation.
+
+## Catch-up VI deadlock
+
+An instrumented 90-second run with the same Vulkan profile and Docker limited
+to 1.5 CPUs reproduced a permanent production stop. This is a scheduling stress
+test, not a hardware performance measurement. The last PCM submission was at
+process time 47,330,293 us, while graphics continued through the rest of the run.
+The event ring captured no failed queue sends or empty audio builds.
+
+The decisive event sequence in `liveness-run2-limited-cpu/audio-liveness.csv` is:
+
+1. At 47,318,469 us, the audio thread consumes notification 5 and requests that
+   the scheduler start the previously queued audio task (`0x29E`).
+2. Before servicing that request, the scheduler handles queued VIs. At
+   47,320,220 us it sends another notification 5 because the notification queue
+   is empty, although the audio thread is already processing the first one.
+3. The previous task starts. The audio thread builds and queues another task,
+   waits for completion, then consumes the extra notification immediately.
+4. The scheduler has not yet drained the new task queue, so the audio thread
+   sees no pending task and sends no start request. It builds a second task and
+   blocks on completion queue `0x8076D6D0`.
+5. At 47,350,571–576 us the scheduler accepts both queued tasks, but neither
+   starts: the thread which must request a start is waiting for completion.
+   A further notification sits unread in queue `0x8076D698`.
+
+`dk64_vita_notify_audio` now requires both an empty notification queue and a
+receiver blocked on that queue. The runtime maintains `blocked_on_recv` at
+offset zero and pops the receiver as soon as it delivers a message. Guest
+execution is serialized, so a consumed notification cannot be replaced while
+the audio thread is running or waiting for task completion. The original startup
+notification remains unchanged.
+
+`dk64_audio_wakeup_checks` executes the actual generated audio loop and native
+notification hook with the captured interleaving. The old empty-only guard
+stalls after three builds and one completion, leaving two unstarted tasks. The
+idle-receiver guard completes 120 tasks from 121 builds without stalling. The
+fixture models scheduler queues and completion; it does not run RSP synthesis.
+
+The fixed native repeat, `liveness-run3-guard-limited-cpu`, ran for 90 seconds
+under the same CPU limit without triggering the two-second submission-gap
+detector. Its bounded producer capture reached process time 71,406,423 us and
+1,267,208 stereo frames before its wall-time limit. This proves progress past
+the captured failure point, not full-speed playback under that CPU limit.
+The recorded output remains non-silent through its end at 88.034 seconds;
+the failing baseline's output is entirely zero after 46.274 seconds. Under
+the CPU limit, the fixed run still has frequent short gaps (185 gaps of at least
+10 ms in capture seconds 15–50). Preserving liveness does not make that constrained
+run meet the audio delivery deadlines.
+
+The unthrottled quiet follow-up, `liveness-run4-quiet`, also ran for 90 seconds.
+It has nonzero output through capture end at 88.042 seconds and no gaps of at
+least 10 ms in seconds 15–50. A 57.19 ms gap remains near second 50.80. Save hashes
+are unchanged and no game logs or capture files were created. Its VPK SHA-256 is
+`b66668cfcd722e342ccb70af395b46f9084b608827c2a93e72a3a0c87d24b9f1`.
+Both quiet builds retain the previously measured buffering fix. The different
+transient durations are observations, not evidence that all load-related gaps
+were improved.
+
+The event recorder exists only in the separate audio probe. It keeps the last
+8,192 events in memory and exports `audio-liveness.csv` after observing two
+seconds without a successful PCM enqueue. It observes sends, receives, audio
+build results and SP submissions; queue/thread fields are sampled on serialized
+guest threads. It neither schedules tasks nor injects controller input. Function
+profiling is rejected for this probe because both modes intercept SP submission.
 
 ## Separate capture build
 

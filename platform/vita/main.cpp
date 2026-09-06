@@ -23,6 +23,8 @@
 #include "audio_capture.h"
 #include <psp2/audioout.h>
 static constexpr char data_directory[]="ux0:data/dk64recompiled-audio";
+void vita_audio_liveness_progress();
+void vita_audio_liveness_poll(const char *directory);
 #elif DK64_VITA_SCRIPTED_INPUT
 #include "adventure_probe.h"
 #if DK64_VITA_MAP_PROBE_ENABLED
@@ -93,6 +95,9 @@ namespace {
 #endif
         if(SDL_QueueAudio(audio_device,swapped.data(),swapped.size()*sizeof(int16_t))<0)
             throw std::runtime_error(SDL_GetError());
+#if DK64_VITA_AUDIO_CAPTURE
+        vita_audio_liveness_progress();
+#endif
 #if DK64_VITA_DIAGNOSTICS
         static bool reported_audio=false;
         if(!reported_audio) {
@@ -188,6 +193,7 @@ namespace {
         const uint64_t now=sceKernelGetProcessTimeWide();
         if(now<next_check) return;
         next_check=now+1000000;
+        vita_audio_liveness_poll(data_directory);
         AudioCaptureData producer,device;
         {
             std::lock_guard lock(audio_mutex);

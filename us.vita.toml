@@ -291,8 +291,9 @@ func = "func_global_asm_8060F254"
 before_vram = 0x8060F3B0
 text = "{ extern int32_t dk64_vita_frame_delta(uint8_t*); ctx->r12 = ADD32(ctx->r11, dk64_vita_frame_delta(rdram)); }"
 
-# Match timing_fixes.c's audio wakeup race fix. At this call site t6 already
-# contains the client's message queue; the original timer call is replaced.
+# Carry timing_fixes.c's direct audio notification, with an idle-receiver guard
+# for catch-up VIs. At this call site t6 contains the client's message queue;
+# the original timer call is replaced.
 [[patches.hook]]
 func = "func_global_asm_8060F254"
 before_vram = 0x8060F4F4
