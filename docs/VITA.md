@@ -235,19 +235,17 @@ callbacks are modeled. These checks account for the remaining handler logic, but
 do not establish target rendering, shooting or complete minigame playthroughs on
 Vita. Local evidence is in `build/upstream-klamour-review/`.
 
-A subsequent ARM map-entry probe reaches Klamour Easy (map 101) in Linux
-Vita3K `4074-496939b6`, using Vulkan and double-buffer memory mapping with normal
-readbacks. The game accepts its own transition request from playable Training
-Grounds. Observer records confirm the 162-unit initial timer, repeated 129-unit
-round resets, ten-target requirement, cursor selections and the failure/retry
-states. Native screenshots show the six targets, original HIT 10 header/counter,
-countdown and BAD LUCK result. The scripted stick sweep and button pulses did not
-reduce the target count; successful shooting, winning, normal bonus-barrel access
-and the other difficulties remain unverified. This is not a physical Vita or
-audio-quality result. Raw logs and the probe VPK are under
-`build/vita3k-linux-control/klamour-101/observed-run/`.
+Native ARM practice runs now clear **all four Klamour difficulties** and return to
+Snide's HQ in Linux Vita3K `4074-496939b6`, using Vulkan, double-buffer memory
+mapping, default CPU optimizations and normal readbacks. The probe uses the game's
+original Snide bonus-entry API and supplies controller inputs for banana aiming,
+one shot per appearance and neutral-stick reloading. The game owns all collision
+and score updates. The final runs clear 10/15/5/10 targets with eight reloads and
+no penalties; initial timer 162 and round timers 129/129/81/81 are observed.
+These are practice-mode results, not physical Vita, normal bonus-barrel access
+or audio-quality proof. See [the inputs and native evidence](VITA_KLAMOUR_VALIDATION.md).
 
-![Klamour Easy in the native Vulkan probe](images/vita3k-klamour-easy.jpg)
+![Earlier Klamour Easy rendering check](images/vita3k-klamour-easy.jpg)
 
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
@@ -727,18 +725,23 @@ title after Adventure becomes playable in Training Grounds or DK's house. Values
 The accepted numeric range is 0 through 215. A nonzero value requires
 `DK64_VITA_SCRIPTED_INPUT=ON`, which in turn requires diagnostics. CMake rejects
 regular-title, quiet and invalid-map configurations that attempt to enable it.
-The request runs on the game's main-loop timing entry through its original
-`805FF378` transition routine, with a private guest argument area and floating
-register aliases. It does not write the current map, score or targets directly.
-For Klamour, it observes controller actor 125 and records phase, timer, target
-count and cursor changes. It retains the existing probe input pattern, which
-does not aim at a selected target or guarantee a hit.
+The request runs on the game's main-loop timing entry with a private guest
+argument area and floating register aliases. Klamour uses original Snide entry
+`80712774`, which establishes bonus-game mode 13 and a valid return route. Other
+maps use the original `805FF378` transition. The probe does not write the current
+map, score or targets directly. For Klamour, it observes controller actor 125 and
+records phase, timer, target count, cursor and ammunition changes. It reads the
+banana's current coordinate slot and supplies ordinary controller input to aim,
+fire once per appearance and reload by centering the stick and pressing A. One
+atomic packet publishes the buttons and both axes together. Intro/result screens
+and other maps retain the general Adventure probe input pattern.
 
 Host checks cover readiness gates, a single request, entry observation, preservation
-of caller stack/registers in both FPR modes, pointer bounds and read-only selection
-of the correct controller. The 22 host checks pass, with the map check rerun after
-correcting its actor selector. Normal-build exclusion is checked separately: the
-timing entry's ARM machine code and its sole relocation are unchanged with the
+of caller stack/registers in both FPR modes, pointer bounds, read-only controller
+observation, all six aiming slots, firing/release, reload, cooldown and fallback
+input. The map check was rerun after the input and entry changes. Normal-build
+exclusion is checked separately: the timing entry's ARM machine code and its sole
+relocation are unchanged with the
 feature disabled, and the disabled probe object defines no symbols. The existing
 quiet hardware VPK retains its hash. The new option requires regenerating
 `us.vita.toml`; changing a nonzero map value afterward does not change the generated

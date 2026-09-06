@@ -27,7 +27,8 @@ public:
         const bool adventure=mode==6||mode_copy==6;
         const bool paused=rdram && (MEM_W(0,0xffffffff807fbb60ULL)&2);
         const bool pulse=ms>=1000 && (ms-1000)%4000<1000;
-        if(pulse) *buttons=adventure||mode==5?0x8000:0x1000;
+        const bool minigame=mode==12||mode==13||mode_copy==12||mode_copy==13;
+        if(pulse) *buttons=adventure||minigame||mode==5?0x8000:0x1000;
         if(adventure && rdram && !MEM_BU(0,0xffffffff807444ecULL)) {
             if(playable_ms<0 && !MEM_BU(0,0xffffffff807463b8ULL)) playable_ms=ms;
             // Change direction periodically so a wall does not consume the

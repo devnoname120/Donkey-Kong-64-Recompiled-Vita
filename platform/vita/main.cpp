@@ -20,6 +20,9 @@
 #include "ovl_patches.hpp"
 #if DK64_VITA_SCRIPTED_INPUT
 #include "adventure_probe.h"
+#if DK64_VITA_MAP_PROBE_ENABLED
+extern "C" bool dk64_vita_map_probe_input(uint16_t *,float *,float *);
+#endif
 static constexpr char data_directory[]="ux0:data/dk64recompiled-probe";
 #else
 static constexpr char data_directory[]="ux0:data/dk64recompiled";
@@ -86,6 +89,9 @@ namespace {
         if(controller!=0) return false;
 #if DK64_VITA_SCRIPTED_INPUT
         static AdventureProbe probe;
+#if DK64_VITA_MAP_PROBE_ENABLED
+        if(dk64_vita_map_probe_input(buttons,x,y)) return true;
+#endif
         probe.poll(game_rdram.load(),buttons,x,y,DK64_VITA_SCRIPTED_PAUSE);
         return true;
 #endif
