@@ -198,13 +198,22 @@ retains its original byte-sized difficulty value and expands it at the 16-bit
 timer consumer to avoid overwriting adjacent overlay data.
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
+Framebuffer fades and wipes retain the fractional half-lag sampled at function
+entry. Their integer progress truncates after arithmetic; radial and clock
+updates retain the upstream double arithmetic. The original CPU framebuffer,
+pause blur and deferred release remain in use.
 
-The twelve host checks include caller-register/stack preservation, save
+The host checks include caller-register/stack preservation, save
 eligibility, actor selection/compaction, actual generated deferred-free and photo
-capture routines, and minigame timing boundaries. The removed-check and photo
-tests failed before their hooks were added. Photo testing isolates the game's
+capture routines, framebuffer effect completion/cleanup, and minigame timing
+boundaries. The removed-check, photo and fractional-transition tests failed
+before their hooks were added. Photo testing isolates the game's
 color conversion. Full affected-save, repeated Owl Race, fairy-photo and
 minigame playthroughs remain required; these focused checks do not replace them.
+A subsequent 85-second host GLES run reached Training Grounds, displayed the
+original blurred pause snapshot, resumed and continued movement/audio. The quiet
+ARM VPK also booted and rendered the DK Rap in Vita3K with Vulkan. Individual
+transition pixels and physical Vita framebuffer readbacks remain unverified.
 
 The deferred asset-loading audit retains the original 192-entry job array, DMA
 descriptor array and completion queue as one unit. A generated-code regression
