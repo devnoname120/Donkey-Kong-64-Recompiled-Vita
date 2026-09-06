@@ -660,7 +660,12 @@ The optional `DK64_VITA_SCRIPTED_INPUT=ON` build produces
 It uses `ux0:data/dk64recompiled-probe/` for its ROM, saves and logs, so it cannot
 modify the regular port's saved game. It does not test physical input delivery.
 The regular `DK64Recompiled.vpk` is produced with this option **OFF** (the default).
-`DK64_VITA_SCRIPTED_PAUSE=ON` also exercises pause/resume in the native probe.
+`DK64_VITA_SCRIPTED_PAUSE=ON` exercises two pause/resume cycles in the native probe.
+The scripted build records the first eight game-requested framebuffer byte arrays
+in its own data directory without issuing extra reads. These captures are absent
+from the regular game build. The Linux Vulkan probe has now shown a black first
+pause background and a correctly blurred second pause background in DK's house,
+followed by resume; see [the native readback evidence](VITA_READBACK_VALIDATION.md#dk64-pause-and-resume).
 
 ## Work remaining
 
@@ -804,11 +809,14 @@ Source at that reported revision disables Vulkan memory mapping on Apple platfor
 and gates GPU surface synchronization on it. A controlled Linux ARM64 run of the
 official CI build at the same revision now distinguishes the behavior: disabled
 mapping returns zero for every tested GPU read, while double-buffer mapping returns
-zero on the first read of each tested surface and correct pixels on subsequent
+zero on the first read of each diagnostic surface and correct pixels on subsequent
 frames. Alternating images confirm those later reads return current frame data.
 Both configurations retain Vulkan, normal synchronized vitaGL/RT64 readbacks, and
 surface synchronization enabled; their saved configs differ only in mapping mode.
 See [the inputs, results and source explanation](VITA_READBACK_VALIDATION.md).
-This establishes an emulator-dependent validation limit, not a completed readback
-fix. First reads, actual game effects on Linux, and physical Vita behavior remain
-unverified or failing as described there.
+The game probe confirms the distinction in actual pause rendering: its first
+capture is black, while the second capture of the same buffer produces the blurred
+room background and resumes successfully. Earlier game reads can also return stale
+CPU content, including the Nintendo boot logo, rather than zero. This establishes
+an emulator-dependent validation limit, not a completed readback fix. First-read
+correctness, other game effects, and physical Vita behavior remain open.

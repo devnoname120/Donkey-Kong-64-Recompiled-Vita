@@ -38,9 +38,16 @@ public:
         }
         if(pause_test && playable_ms>=0) {
             const auto elapsed=ms-playable_ms;
-            if(elapsed>=8000 && elapsed<22000) {
-                *buttons=((elapsed<10000)||(elapsed>=20000))?0x1000:0;
-                *x=0; *y=0;
+            // Repeat after resuming: a first framebuffer read can differ from
+            // later reads of the same surface in native graphics backends.
+            const int64_t pause_starts[]={8000,30000};
+            for(auto start:pause_starts) {
+                const auto phase=elapsed-start;
+                if(phase>=0 && phase<14000) {
+                    *buttons=(phase<2000 || phase>=12000)?0x1000:0;
+                    *x=0; *y=0;
+                    break;
+                }
             }
         }
         if(*buttons!=previous || map!=previous_map || mode!=previous_mode || paused!=previous_paused) {

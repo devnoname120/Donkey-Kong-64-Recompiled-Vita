@@ -77,6 +77,58 @@ fairy photograph, and do not establish physical Vita behavior. They also do not
 test the hardware build's requested delayed-readback option. No emulator-specific
 retry, dummy draw or graphics workaround was added to the game or RT64.
 
+## DK64 pause and resume
+
+The same Linux emulator and double-buffer mapping were then used with the actual
+ARM DK64 game probe, normal synchronized readbacks, and copied probe saves. The
+scripted title `DK64RT001` uses a separate data directory. Its renderer records
+only the bytes returned by the game's own framebuffer requests: it does not make
+additional reads that might prime the surface tracking.
+
+A first, 180-second run reached Training Grounds, paused, resumed and continued
+moving. Its first captured image contained the earlier Nintendo boot logo; the
+following transition and pause reads were black. Non-black pixels alone therefore
+do not demonstrate a correct game screenshot.
+
+The next probe added a second pause cycle. It entered DK's house from Training
+Grounds, completed both pause/resume cycles in that room and continued moving.
+The game requested the same 320x240 RGBA16 address, `0x00049800`, for both pauses:
+
+| Game-requested capture | Colored pixels | Observed content |
+| --- | --- | --- |
+| Earlier read at `0x00034000` | 5,278 / 76,800 | Stale Nintendo boot logo |
+| Earlier read at `0x0004fa00` | 0 / 76,800 | Black |
+| First pause at `0x00049800` | 0 / 76,800 | Black |
+| Second pause at `0x00049800` | 72,030 / 76,800 | Room image used for the blurred pause background |
+
+Vita3K's own Vulkan screenshots independently show the visible result:
+
+| First pause | Second pause |
+| --- | --- |
+| ![First pause with black background](images/vita3k-pause-1.jpg) | ![Second pause with blurred room background](images/vita3k-pause-2.jpg) |
+
+The second resume screenshot shows Donkey Kong in the room with the sharp gameplay
+image restored. Logs record both `pause=1` to `pause=0` transitions and subsequent
+player movement. This verifies repeated pause rendering in that scene; it does not
+establish first-read correctness, fairy photography, general transition behavior,
+audio quality or physical Vita compatibility.
+
+The repeat probe VPK SHA-256 is
+`beeb1b5b3ce42047a851bbf9d4140f22936da113e977cd17016e1214b000c052`;
+its eboot SHA-256 is
+`90f48eeeb1ae4a46ee0571e9514082049e06ad59dcd2a4e41de974884f170185`.
+All four raw captures are 153,600 bytes. The repeat run reached at least 3,480
+graphics tasks before its 180-second bound (exit 124). Native screenshots were
+requested with F12 in the isolated Xvfb game window; gameplay input came from the
+probe callback. The screenshots do not use the failing guest readback path.
+
+Raw captures, screenshots, configuration, input-save hashes and logs are retained
+locally in `build/vita3k-linux-control/adventure-double-buffer-repeat-result/`, with
+`validation.json` recording the results. The original probe saves and existing
+quiet hardware VPK retain their hashes. Under the quiet build's compiler flags,
+the renderer's preprocessed source is byte-identical before and after adding the
+probe-only recording block. No hardware game build was regenerated or deployed.
+
 ## Repeating the diagnostic
 
 Build `rt64_fast_smoke.vpk-vpk` using the normal readback options above and the

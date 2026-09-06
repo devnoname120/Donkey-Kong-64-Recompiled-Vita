@@ -10,6 +10,8 @@
 #include "memory_writes.h"
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
 #include <unordered_set>
+#endif
+#if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER || DK64_VITA_SCRIPTED_INPUT
 #include <psp2/io/fcntl.h>
 #endif
 
@@ -119,6 +121,21 @@ public:
         submit_framebuffer_writes(*sink);
         std::vector<uint8_t> bytes;
         sink->readFramebuffer(address,size,bytes);
+#if DK64_VITA_SCRIPTED_INPUT
+        // Preserve the actual game-requested bytes without issuing an extra
+        // read that could change the emulator's first-read behavior.
+        static unsigned readbacks=0;
+        if(readbacks<8) {
+            char path[128];
+            std::snprintf(path,sizeof(path),"ux0:data/dk64recompiled-probe/readback-%u-%08x.bin",readbacks,address);
+            SceUID fd=sceIoOpen(path,SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
+            const int written=fd>=0?sceIoWrite(fd,bytes.data(),bytes.size()):-1;
+            if(fd>=0) sceIoClose(fd);
+            vita_log("Game framebuffer readback %u: address=%08x requested=%u returned=%u written=%d graphics_tasks=%llu",
+                readbacks,address,size,unsigned(bytes.size()),written,static_cast<unsigned long long>(tasks));
+            ++readbacks;
+        }
+#endif
         return bytes;
     }
     void update_screen() override {

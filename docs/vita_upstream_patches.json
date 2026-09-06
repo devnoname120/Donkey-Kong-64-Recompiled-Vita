@@ -249,8 +249,8 @@
       "purpose": "Make rendered framebuffer data available to CPU effects",
       "disposition": "partial",
       "reason": "Vita retains the original copy/morph and synchronizes its source through the graphics queue. This differs from upstream GPU-overlay snapshots.",
-      "evidence": "Host readback/feedback tests and pause-image checks; native Vita3K CPU readback remains black.",
-      "next_action": "Validate physical-Vita copies and speedhack tradeoffs; resolve remaining emulator readback behavior."
+      "evidence": "Host readback/feedback tests and pause-image checks. The native Linux ARM probe with Vita3K 4074-496939b6, Vulkan and double-buffer mapping records only game-requested bytes: first reads contain a stale Nintendo logo or black pixels; a second pause at the same address returns the room image and visibly produces the original blurred background, followed by resume. Disabled mapping remains black in the renderer control. See docs/VITA_READBACK_VALIDATION.md for raw-capture counts, native screenshots and proof limits.",
+      "next_action": "Validate first-read correctness, other CPU framebuffer effects and physical-Vita copies, including the requested speedhack variant; the repeated-pause result does not resolve those limits."
     },
     {
       "source": "patches/patches_framebuffer.c",
@@ -259,8 +259,8 @@
       "purpose": "Preserve fractional half-lag for framebuffer transition timing; adapt snapshots and effect rendering",
       "disposition": "partial",
       "reason": "Vita hooks retain the original mul.s half-lag before integer truncation and carry it to all eight progress consumers. Integer fades/wipes truncate after arithmetic; radial/clock effects retain their double updates. The original 4:3 CPU framebuffer allocation, alpha, pause blur and two-frame deferred release remain; desktop stored_framebuffer, widescreen and interpolation commands are not imported.",
-      "evidence": "Compared reference C, upstream replacement and original generated instructions at 0x80629348, 0x80629730, 0x806298F8, 0x80629A94, 0x80629D48, 0x80629D50, 0x80629DC0, 0x80629EE8 and 0x8062A010. dk64_framebuffer_effect_checks executes the generated routine: odd/even lags, integer truncation after subtraction, sampled lag, all seven transition boundaries, deferred release, pause exit, one-time matrix initialization and guest register/stack preservation. It failed before the hooks and passes with them. Graphics callbacks are stubbed, so this does not validate GPU pixels.",
-      "next_action": "Validate affected fades/wipes and pause snapshots on physical Vita, including original blur and speedhack readback behavior; native Vita3K GPU-owned readbacks remain unresolved."
+      "evidence": "Compared reference C, upstream replacement and original generated instructions at 0x80629348, 0x80629730, 0x806298F8, 0x80629A94, 0x80629D48, 0x80629D50, 0x80629DC0, 0x80629EE8 and 0x8062A010. dk64_framebuffer_effect_checks executes the generated routine: odd/even lags, integer truncation after subtraction, sampled lag, all seven transition boundaries, deferred release, pause exit, one-time matrix initialization and guest register/stack preservation. It failed before the hooks and passes with them. Graphics callbacks are stubbed, so this does not validate GPU pixels. Separately, the ARM game probe on Linux Vita3K/Vulkan with double-buffer mapping completes two pause/resume cycles in DK's house: the first capture is black, while the second at the same address contains 72030 colored pixels and produces the blurred room background in Vita3K's native screenshot. This validates repeated pause rendering in that scene, not all transition branches; see docs/VITA_READBACK_VALIDATION.md.",
+      "next_action": "Validate affected fades/wipes, first pause captures and physical Vita snapshots, including the requested speedhack behavior. The first-read emulator failure remains open despite the successful repeated pause."
     },
     {
       "source": "patches/patches_framebuffer.c",
