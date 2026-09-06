@@ -219,6 +219,22 @@ loop, keeping the original allocation and texture-only fallback. Rabbit speed
 and Krazy Kong Klamour durations also carry the upstream lag adjustments; Klamour
 retains its original byte-sized difficulty value and expands it at the 16-bit
 timer consumer to avoid overwriting adjacent overlay data.
+
+The rest of the Klamour handler is now compared against compiled upstream in
+2946 paired cases: 18 initialization cases across all four difficulties and
+defaults, 2016 timer/fade cases, 864 input and win/loss-state cases, and 48 inactive
+phases. The actual game RNG runs, and 448 round resets produce complete six-target
+permutations. Actor/AAD/game/input state, semantic callback arguments, expanded
+duration and relocated sound-counter values match. The renderer callback address
+is compared by function identity: upstream registers its patched HUD wrapper,
+while Vita retains the original wrapper already reviewed separately. MIPS layout
+assertions cover the actor/game records and the pointer table preceding target
+coordinates; the host comparison passes AddressSanitizer and preserves the bytes
+adjoining the original duration. Graphics, audio, text/action and hit-result
+callbacks are modeled. These checks account for the remaining handler logic, but
+do not establish target rendering, shooting or complete minigame playthroughs on
+Vita. Local evidence is in `build/upstream-klamour-review/`.
+
 An additional hook preserves the upstream opaque-black cover for a stopped
 transition beyond its completion threshold, with a private guest argument area.
 Framebuffer fades and wipes retain the fractional half-lag sampled at function
