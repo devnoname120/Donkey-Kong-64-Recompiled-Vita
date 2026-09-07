@@ -1,5 +1,9 @@
 # CPU rendering cost and audio under graphics load
 
+For the subsequent unattended physical-device FPS measurements and renderer
+optimizations, see [Physical Vita FPS validation](VITA_FPS_VALIDATION.md). The
+measurements in this document remain the earlier controls described below.
+
 ## Scope
 
 The hardware report for build `429aa71` described roughly 25-40 presentation FPS

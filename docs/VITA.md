@@ -5,8 +5,10 @@ Vita3K/Vulkan validation covers the intro, main menu, opening Adventure story,
 movement and swimming, two pause/resume cycles, all four Klamour practice
 difficulties, and a successful fairy photograph with a fresh-process save reload.
 The camera run uses an explicit test fixture, not normal quest progression.
-Broader gameplay, physical-Vita behavior and performance still require validation;
-the packages are development builds, not a compatibility-certified release.
+Matched physical-Vita FPS comparisons and native depth controls are described in
+[the hardware performance report](VITA_FPS_VALIDATION.md). Broader gameplay and
+device coverage still require validation; these are development builds, not a
+compatibility-certified release.
 
 The target is a reusable reduced RT64 renderer, followed by the DK64 runtime and
 Vita frontend. RT64's existing renderer uses compute shaders for vertex processing,

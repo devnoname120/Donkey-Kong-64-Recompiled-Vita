@@ -281,3 +281,6 @@ if(PROBE_GL)
         set_tests_properties(dk64_${effect}_overlay_checks PROPERTIES ENVIRONMENT "GALLIUM_DRIVER=softpipe")
     endforeach()
 endif()
+
+add_executable(dk64_fps_benchmark_checks ../vita/test_fps_benchmark.cpp)
+add_test(NAME dk64_fps_benchmark_checks COMMAND dk64_fps_benchmark_checks)

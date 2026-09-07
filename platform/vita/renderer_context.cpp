@@ -7,6 +7,9 @@
 #include "log.h"
 #include "vi.h"
 #include "memory_writes.h"
+#if DK64_VITA_BENCHMARK
+#include "fps_benchmark.h"
+#endif
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
 #include "trace_sink.h"
 #endif
@@ -29,8 +32,14 @@ public:
         chosen_api = ultramodern::renderer::GraphicsApi::Auto;
         setup_result = ultramodern::renderer::SetupResult::GraphicsDeviceNotFound;
         try {
+#if DK64_VITA_BENCHMARK
+            VitaBenchmark::milestone("renderer init entered");
+#endif
             // N64ModernRuntime's VI thread already provides frame pacing.
             sink = RT64::createFastVitaGLSink(false);
+#if DK64_VITA_BENCHMARK
+            VitaBenchmark::milestone("vitaGL initialized");
+#endif
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
 #if DK64_VITA_SCRIPTED_INPUT
             constexpr const char *trace_directory="ux0:data/dk64recompiled-probe";
@@ -42,6 +51,9 @@ public:
             state = std::make_unique<RT64::State>(rdram,recomp::mem_size,*sink);
             track_framebuffer_writes(*sink);
             interpreter.setup(state.get());
+#if DK64_VITA_BENCHMARK
+            VitaBenchmark::milestone("renderer ready");
+#endif
             setup_result = ultramodern::renderer::SetupResult::Success;
             vita_log("DK64 Vita renderer initialized");
         } catch(const std::exception &e) { vita_log("Vita renderer initialization: %s",e.what()); }
@@ -52,6 +64,9 @@ public:
     bool defer_rsp_completion() const override { return true; }
     bool supports_rsp_yield() const override { return true; }
     void send_dl(const OSTask *task) override {
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::Span benchmarkSpan{VitaBenchmark::Kind::Graphics};
+#endif
         submit_framebuffer_writes(*sink);
 #if DK64_VITA_DIAGNOSTICS
         if(tasks<3) vita_log("Entering graphics task %llu",static_cast<unsigned long long>(tasks+1));
@@ -74,12 +89,18 @@ public:
             if(tasks%120==0) task_time_us=0;
 #endif
         } catch(const std::exception &e) {
+#if DK64_VITA_BENCHMARK
+            VitaBenchmark::fail(e.what());
+#endif
             vita_log("DK64 graphics task %llu: %s",static_cast<unsigned long long>(tasks),e.what());
             ultramodern::quit();
         }
     }
     void send_dummy_workload(uint32_t address) override { submit_framebuffer_writes(*sink); sink->present(address & 0xffffff); }
     std::vector<uint8_t> read_framebuffer(uint32_t address,uint32_t size) override {
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::Span benchmarkSpan{VitaBenchmark::Kind::ColorRead};
+#endif
         submit_framebuffer_writes(*sink);
         std::vector<uint8_t> bytes;
         sink->readFramebuffer(address,size,bytes);
@@ -101,12 +122,18 @@ public:
         return bytes;
     }
     std::vector<uint8_t> read_depthbuffer(uint32_t address,uint32_t size) override {
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::Span benchmarkSpan{VitaBenchmark::Kind::DepthRead};
+#endif
         submit_framebuffer_writes(*sink);
         std::vector<uint8_t> bytes;
         sink->readDepthFramebuffer(address,size,bytes);
         return bytes;
     }
     void update_screen() override {
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::Span benchmarkSpan{VitaBenchmark::Kind::Present};
+#endif
         submit_framebuffer_writes(*sink);
         const auto *vi = ultramodern::renderer::get_vi_regs();
 #if DK64_VITA_DIAGNOSTICS

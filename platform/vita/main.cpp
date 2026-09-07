@@ -19,7 +19,10 @@
 #include "donk_game.h"
 #include "ovl_patches.hpp"
 #include "audio_queue.h"
-#if DK64_VITA_AUDIO_CAPTURE
+#if DK64_VITA_BENCHMARK
+#include "fps_benchmark.h"
+static constexpr char data_directory[]="ux0:data/dk64recompiled-benchmark";
+#elif DK64_VITA_AUDIO_CAPTURE
 #include "audio_capture.h"
 #include <psp2/audioout.h>
 static constexpr char data_directory[]="ux0:data/dk64recompiled-audio";
@@ -42,7 +45,9 @@ unsigned int sceUserMainThreadStackSize = 2 * 1024 * 1024;
 unsigned int _pthread_stack_default_user = 2 * 1024 * 1024;
 #if DK64_VITA_DIAGNOSTICS
 static std::atomic<uint8_t *> game_rdram{nullptr};
+#endif
 
+#if DK64_VITA_DIAGNOSTICS
 void vita_log(const char *format, ...) {
     char message[2048]; va_list args; va_start(args,format);
     std::vsnprintf(message,sizeof(message),format,args); va_end(args);
@@ -112,10 +117,15 @@ namespace {
 #if DK64_VITA_AUDIO_CAPTURE
         audio_capture.observe_queue(frames,sceKernelGetProcessTimeWide());
 #endif
-        return vita_audio_frames_remaining(frames,audio_rate,audio_device_frames);
+        const size_t adjusted=vita_audio_frames_remaining(frames,audio_rate,audio_device_frames);
+        return adjusted;
     }
     bool input(int controller,uint16_t *buttons,float *x,float *y) {
         if(controller!=0) return false;
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::input(buttons,x,y);
+        return true;
+#endif
 #if DK64_VITA_SCRIPTED_INPUT
         static AdventureProbe probe;
 #if DK64_VITA_MAP_PROBE_ENABLED
@@ -188,6 +198,9 @@ namespace {
 #endif
     void update(void *) {
         SDL_PumpEvents();vita_log_guest_profile();
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::poll();
+#endif
 #if DK64_VITA_AUDIO_CAPTURE
         static uint64_t next_check=0;
         const uint64_t now=sceKernelGetProcessTimeWide();
@@ -256,6 +269,12 @@ int main() {
                 uint32_t(ultramodern::thread_queue_peek(rdram,ultramodern::running_queue)));
         }
 #endif
+#if DK64_VITA_BENCHMARK
+        try {
+            if(auto error=std::current_exception())std::rethrow_exception(error);
+        } catch(const std::exception &error) { VitaBenchmark::fail(error.what()); }
+        catch(...) { VitaBenchmark::fail("Unhandled FPS benchmark exception"); }
+#endif
         sceKernelExitProcess(1);
     });
 #if DK64_VITA_DIAGNOSTICS
@@ -264,6 +283,9 @@ int main() {
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
 #endif
     try {
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::initialize();
+#endif
         // Keep compiled shaders beside this game's data, with a namespace for
         // the pinned vitaGL/vitaShaRK pair and semantic binding mode. Update it
         // when changing those dependencies or the shader compiler options.
@@ -282,6 +304,9 @@ int main() {
         if(SDL_Init(SDL_INIT_AUDIO|SDL_INIT_TIMER)<0) throw std::runtime_error(SDL_GetError());
         sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
         recomp::register_config_path(data_directory);
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::milestone("SDL and configuration ready");
+#endif
         dk64::register_bk_overlays();
         recomp::GameEntry game{};
         game.rom_hash=0x4d876060f09b3fc5ULL; game.internal_name="DONKEY KONG 64";
@@ -289,6 +314,9 @@ int main() {
         game.save_type=recomp::SaveType::Eep16k; game.is_enabled=true;
         game.entrypoint_address=get_entrypoint_address(); game.entrypoint=&recomp_entrypoint;
         game.on_init_callback=[](uint8_t *rdram,recomp_context *ctx) {
+#if DK64_VITA_BENCHMARK
+            VitaBenchmark::milestone("game init callback");
+#endif
 #if DK64_VITA_DIAGNOSTICS
             game_rdram.store(rdram);
 #endif
@@ -312,12 +340,24 @@ int main() {
 #if DK64_VITA_SCRIPTED_INPUT
         vita_log("Scripted Adventure validation enabled; separate ROM and saves at %s",data_directory);
 #endif
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::milestone("entering recomp start");
+#endif
         recomp::start(config);
 #if DK64_VITA_DIAGNOSTICS
         game_rdram.store(nullptr);
 #endif
         if(audio_device) SDL_CloseAudioDevice(audio_device);
         SDL_Quit();
-    } catch(const std::exception &e) { vita_log("DK64 startup failed: %s",e.what()); return 1; }
+#if DK64_VITA_BENCHMARK
+        return VitaBenchmark::finishShutdown();
+#endif
+    } catch(const std::exception &e) {
+        vita_log("DK64 startup failed: %s",e.what());
+#if DK64_VITA_BENCHMARK
+        VitaBenchmark::fail(e.what());
+#endif
+        return 1;
+    }
     return 0;
 }
