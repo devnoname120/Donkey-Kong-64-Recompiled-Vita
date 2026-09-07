@@ -16,6 +16,18 @@
 #include <thread>
 #include <unordered_set>
 #include "../vita/memory_writes.h"
+#ifdef PROBE_TRACE_FAULTS
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
+static void trace_fault(int signal,siginfo_t *info,void *) {
+    void *frames[32];
+    dprintf(2,"Probe fault %d at %p\n",signal,info->si_addr);
+    const int count=backtrace(frames,32);
+    backtrace_symbols_fd(frames,count,2);
+    _exit(128+signal);
+}
+#endif
 #ifdef PROBE_GL
 #include "egl.h"
 #endif
@@ -89,6 +101,9 @@ public:
     bool readFramebufferSnapshot(const RT64::FastFramebuffer &snapshot,std::vector<uint8_t> &bytes) override {
         return forward && forward->readFramebufferSnapshot(snapshot,bytes);
     }
+    bool readDepthFramebuffer(uint32_t address,uint32_t size,std::vector<uint8_t> &bytes) override {
+        return forward && forward->readDepthFramebuffer(address,size,bytes);
+    }
     void present(uint32_t address) override {
         if(forward) forward->present(address);
         if(present_ms) std::this_thread::sleep_for(std::chrono::milliseconds(present_ms));
@@ -147,6 +162,12 @@ public:
         sink.readFramebuffer(address,size,bytes);
         return bytes;
     }
+    std::vector<uint8_t> read_depthbuffer(uint32_t address,uint32_t size) override {
+        submit_framebuffer_writes(sink);
+        std::vector<uint8_t> bytes;
+        sink.readDepthFramebuffer(address,size,bytes);
+        return bytes;
+    }
     void update_screen() override {
         submit_framebuffer_writes(sink);
         const auto *vi=ultramodern::renderer::get_vi_regs();
@@ -169,6 +190,12 @@ static void snapshot() {
         uint32_t(idle->queue),uint32_t(idle->next),static_cast<void *>(idle->context),uint32_t(ultramodern::thread_queue_peek(rdram,ultramodern::running_queue)));
 }
 int main(int argc,char **argv) {
+#ifdef PROBE_TRACE_FAULTS
+    struct sigaction action{};
+    action.sa_sigaction=&trace_fault; action.sa_flags=SA_SIGINFO;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGSEGV,&action,nullptr); sigaction(SIGBUS,&action,nullptr);
+#endif
     if(argc<2) { std::fprintf(stderr,"Usage: %s ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture]\n",argv[0]); return 1; }
     if(argc>2) run_seconds=std::atoi(argv[2]);
     if(argc>3) present_ms=std::atoi(argv[3]);

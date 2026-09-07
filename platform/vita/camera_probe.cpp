@@ -5,7 +5,6 @@
 #include <array>
 #include <bit>
 #include <cstdio>
-#include <cmath>
 #include <stdexcept>
 #include <vector>
 
@@ -13,12 +12,12 @@ extern "C" void setFlag(uint8_t *,recomp_context *);
 extern "C" void isFlagSet(uint8_t *,recomp_context *);
 extern "C" void changeCollectableCount(uint8_t *,recomp_context *);
 namespace {
-enum class Phase { Waiting,Navigating,Settling,Entering,Miss,MissPhoto,NavigateExit,Seeking,HitPhoto,Leaving,Finished };
+enum class Phase { Waiting,Settling,Entering,Miss,MissPhoto,PlaceFixture,Seeking,Locked,HitPhoto,Leaving,Finished };
 struct CameraProbe {
     Phase phase=Phase::Waiting;
     bool prepared=false,enter_down=false,actors_reported=false;
     uint32_t next=0,press_until=0,last_picture=0;
-    unsigned button=0,photos=0,queued=0,freed=0,waypoint=0;
+    unsigned button=0,photos=0,queued=0,freed=0;
     std::array<uint32_t,2> buffers{};
     int previous_state=-1,previous_result=-1,previous_film=-1,previous_flag=-1;
     uint32_t next_report=0;
@@ -45,8 +44,16 @@ void setup(uint8_t *rdram,const recomp_context &ctx) {
     call=private_call(ctx);bind_fprs(call);call.r4=6;call.r5=0;call.r6=10;
     changeCollectableCount(rdram,&call);
 }
-void prepare(CameraProbe &probe,uint8_t *rdram,const recomp_context &ctx) {
+void prepare(CameraProbe &probe,uint8_t *rdram,const recomp_context &ctx,bool verify_save=false) {
     if(probe.prepared)return;
+    if(verify_save) {
+        const int captured=flag(rdram,ctx,0x24d),owned=flag(rdram,ctx,0x179);
+        if(!captured || !owned)throw std::runtime_error("Camera probe saved capture is missing");
+        probe.prepared=true;probe.phase=Phase::Finished;
+        vita_log("Camera probe save verification passed: camera=%d fairy_flag=%d film=%u; no prerequisites changed",
+            owned,captured,MEM_HU(0,0xffffffff807fcc48ULL));
+        return;
+    }
     if(flag(rdram,ctx,0x24d))throw std::runtime_error("Camera probe needs an uncaptured Japes pool fairy");
     setup(rdram,ctx);probe.prepared=true;
     vita_log("Camera probe prerequisites: camera=%d film=%u fairy_flag=%d",flag(rdram,ctx,0x179),
@@ -65,7 +72,6 @@ void save_photo(uint8_t *rdram,uint32_t address,unsigned index) {
     if(written!=bytes.size())throw std::runtime_error("Incomplete camera probe photograph");
 }
 uint32_t update(CameraProbe &probe,uint8_t *rdram,recomp_context *ctx) {
-    // Japes exit 13 provides an original entry near the active pool fairy.
     if(MEM_W(0,0xffffffff8076a0a8ULL)!=7) return packet();
     const gpr player=MEM_W(0,0xffffffff807fbb4cULL);
     if(!valid(player,0x17c))return packet();
@@ -121,33 +127,6 @@ uint32_t update(CameraProbe &probe,uint8_t *rdram,recomp_context *ctx) {
     auto press=[&](unsigned button,Phase next) { probe.button=button;probe.press_until=frame+2;probe.phase=next;return packet(button); };
     switch(probe.phase) {
     case Phase::Waiting:break;
-    case Phase::Navigating: {
-        // Approach a point beside the ROM spawner (564,270,2916), using the
-        // game's input yaw and ordinary stick input, without moving actors.
-        constexpr float route[2][2]={{500.0f,3550.0f},{650.0f,3120.0f}};
-        const float dx=route[probe.waypoint][0]-std::bit_cast<float>(uint32_t(MEM_W(0x7c,player)));
-        const float dz=route[probe.waypoint][1]-std::bit_cast<float>(uint32_t(MEM_W(0x84,player)));
-        if(dx*dx+dz*dz<40.0f*40.0f) {
-            if(probe.waypoint==0)++probe.waypoint;
-            else { probe.phase=Phase::Settling;probe.next=frame+30; }
-            break;
-        }
-        const gpr cc=MEM_W(0,0xffffffff807fc924ULL);
-        if(!valid(cc,0x2f0))break;
-        // handleInputsForControlState adds CC+2C8 to atan2(stickX,-stickY).
-        // Quantize by angle, not a fixed world-distance threshold: the latter
-        // turns a small lateral correction into a full diagonal input.
-        const float yaw=MEM_H(0x2c8,cc)*(6.283185307179586f/4096.0f);
-        const float sx=std::sin(yaw),cz=std::cos(yaw);
-        const float x=dx*cz-dz*sx,y=-dx*sx-dz*cz;
-        const float threshold=std::hypot(dx,dz)*0.382683432f;
-        if(frame%30==0)vita_log("Camera probe navigation: waypoint=%u yaw=%d heading=%d dx=%.1f dz=%.1f stick=%d,%d processed=%d,%d input_angle=%d target_angle=%d move_angle=%d flags=%08x",
-            probe.waypoint,MEM_H(0x2c8,cc),MEM_H(0xee,player),dx,dz,
-            x<-threshold?-1:x>threshold?1:0,y<-threshold?-1:y>threshold?1:0,
-            MEM_B(0x2e,0xffffffff807fd610ULL),MEM_B(0x2f,0xffffffff807fd610ULL),
-            MEM_H(0x20,0xffffffff807fd610ULL),MEM_H(0x28,0xffffffff807fd610ULL),MEM_H(0xa,aad),MEM_W(0x1f0,aad));
-        return packet(0,x<-threshold?-1:x>threshold?1:0,y<-threshold?-1:y>threshold?1:0);
-    }
     case Phase::Settling:
         if(int32_t(frame-probe.next)>=0) {
             probe.enter_down=false;probe.next=frame+8;
@@ -170,17 +149,38 @@ uint32_t update(CameraProbe &probe,uint8_t *rdram,recomp_context *ctx) {
     case Phase::MissPhoto:
         if(probe.photos>=1 && !picture && !busy && (probe.freed&1)) {
             if(captured)throw std::runtime_error("Camera probe's intended miss captured the fairy");
-            return press(4,Phase::NavigateExit);
+            return press(4,Phase::PlaceFixture);
         }
         break;
-    case Phase::NavigateExit:
-        if(!active && state!=0x64 && state!=0x65 && !busy && !MEM_W(0x88,aad))probe.phase=Phase::Navigating;
+    case Phase::PlaceFixture:
+        if(!active && state!=0x64 && state!=0x65 && !busy && !MEM_W(0x88,aad)) {
+            MEM_W(0x7c,player)=std::bit_cast<uint32_t>(700.0f);
+            MEM_W(0x80,player)=std::bit_cast<uint32_t>(320.0f);
+            MEM_W(0x84,player)=std::bit_cast<uint32_t>(3080.0f);
+            probe.phase=Phase::Settling;probe.next=frame+120;
+            vita_log("Camera probe fixture: player placed at 700,320,3080; original physics, visibility and capture remain active");
+        }
         break;
     case Phase::Seeking:
         if(active && !busy && int32_t(frame-probe.next)>=0) {
-            if(fairy && result==1) { vita_log("Camera probe fairy shutter");return press(0x4000,Phase::HitPhoto); }
-            if(fairy && sx>=0 && sx<320 && sy>=0 && sy<240)return packet(0,sx<150?-1:sx>170?1:0,sy<108?1:sy>128?-1:0);
+            if(fairy && result==1 && sx>=154 && sx<=166 && sy>=112 && sy<=124) {
+                probe.phase=Phase::Locked;probe.next=frame+4;
+                return packet();
+            }
+            if(fairy && sx!=16384 && sy!=16384) {
+                // Coarse aiming overshoots while the game's filtered input settles.
+                const uint32_t precision=(sx>=80 && sx<=240 && sy>=40 && sy<=200)?0x20U:0;
+                return packet(0,sx<154?-1:sx>166?1:0,sy<112?-1:sy>124?1:0)|precision;
+            }
             return packet(0,1,0);
+        }
+        break;
+    case Phase::Locked:
+        if(!active || busy || !fairy || result!=1 || sx<144 || sx>172 || sy<102 || sy>130) {
+            probe.phase=Phase::Seeking;probe.next=frame;
+        } else if(int32_t(frame-probe.next)>=0) {
+            vita_log("Camera probe fairy shutter: settled projection=%d,%d",sx,sy);
+            return press(0x4000,Phase::HitPhoto);
         }
         break;
     case Phase::HitPhoto:
@@ -190,7 +190,7 @@ uint32_t update(CameraProbe &probe,uint8_t *rdram,recomp_context *ctx) {
         }
         break;
     case Phase::Leaving:
-        if(!active && state!=0x64 && state!=0x65 && !busy && !MEM_W(0x88,aad)) {
+        if((state==12 || state==13) && !busy && !MEM_W(0x88,aad)) {
             probe.phase=Phase::Finished;probe.next=frame+30;
             vita_log("Camera probe completed: photos=%u film=%d fairy_flag=%d queued=%u freed=%u",probe.photos,film,captured,probe.queued,probe.freed);
         }
@@ -207,7 +207,13 @@ int buffer_index(uint32_t address,unsigned mask) {
 }
 }
 extern "C" uint32_t dk64_vita_camera_probe(uint8_t *rdram,recomp_context *ctx) { return update(camera_probe,rdram,ctx); }
-extern "C" void dk64_vita_prepare_camera_probe(uint8_t *rdram,recomp_context *ctx) { prepare(camera_probe,rdram,*ctx); }
+extern "C" void dk64_vita_prepare_camera_probe(uint8_t *rdram,recomp_context *ctx) {
+    if(camera_probe.prepared)return;
+    FILE *verification=std::fopen("ux0:data/dk64recompiled-probe/verify-camera-save","rb");
+    const bool verify_save=verification!=nullptr;
+    if(verification)std::fclose(verification);
+    prepare(camera_probe,rdram,*ctx,verify_save);
+}
 extern "C" void __real_func_global_asm_8061134C(uint8_t *,recomp_context *);
 extern "C" void __wrap_func_global_asm_8061134C(uint8_t *rdram,recomp_context *ctx) {
     const uint32_t address=ctx->r4;const int index=buffer_index(address,camera_probe.queued);

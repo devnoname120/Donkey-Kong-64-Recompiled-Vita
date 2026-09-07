@@ -48,7 +48,7 @@ if(DK64_VITA_GAME)
         target_compile_definitions(ultramodern PRIVATE RECOMP_SCHEDULER_DIAGNOSTICS)
         target_compile_options(dk64_recompiled_vita PRIVATE -finstrument-functions)
     endif()
-    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp map_probe.cpp camera_probe.cpp
+    add_executable(DK64Recompiled main.cpp renderer_context.cpp game_support.cpp gameplay_fixes.cpp boot.cpp overlays.cpp profile.cpp timing.cpp framebuffer.cpp depthbuffer.cpp map_probe.cpp camera_probe.cpp
         register_overlays.cpp
         ${CMAKE_SOURCE_DIR}/src/game/rom_decompression.cpp
         ${CMAKE_SOURCE_DIR}/rsp/n_aspMain.cpp)
@@ -138,6 +138,16 @@ target_link_libraries(rt64_fast_smoke PRIVATE rt64
 vita_create_self(rt64_fast_smoke.self rt64_fast_smoke UNSAFE)
 vita_create_vpk(rt64_fast_smoke.vpk RT64F3001 rt64_fast_smoke.self
     VERSION 01.00 NAME "RT64 Fast Renderer Test")
+
+add_executable(rt64_depth_smoke depth_smoke.cpp)
+target_compile_features(rt64_depth_smoke PRIVATE cxx_std_17)
+target_compile_options(rt64_depth_smoke PRIVATE -fno-strict-aliasing)
+target_link_libraries(rt64_depth_smoke PRIVATE rt64
+    "-Wl,--whole-archive" pthread "-Wl,--no-whole-archive"
+    SceCtrl_stub ScePower_stub SceTouch_stub SceAppMgr_stub m)
+vita_create_self(rt64_depth_smoke.self rt64_depth_smoke UNSAFE)
+vita_create_vpk(RT64DepthControl.vpk RT64Z0001 rt64_depth_smoke.self
+    VERSION 01.00 NAME "RT64 Depth Control")
 
 add_executable(rt64_semaphore_smoke semaphore_smoke.cpp)
 target_compile_features(rt64_semaphore_smoke PRIVATE cxx_std_17)

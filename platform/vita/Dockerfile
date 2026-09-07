@@ -10,7 +10,10 @@ ARG VITAGL_READBACKS_SPEEDHACK=0
 RUN git clone https://github.com/Rinnegatamante/vitashark.git /tmp/vitashark \
     && git -C /tmp/vitashark checkout ${VITASHARK_REV} \
     && make -C /tmp/vitashark -j8 install
+COPY patches/vitagl-viewport.patch /tmp/vitagl-viewport.patch
 RUN git clone https://github.com/Rinnegatamante/vitaGL.git /tmp/vitagl \
     && git -C /tmp/vitagl checkout ${VITAGL_REV} \
+    && git -C /tmp/vitagl apply --check /tmp/vitagl-viewport.patch \
+    && git -C /tmp/vitagl apply /tmp/vitagl-viewport.patch \
     && make -C /tmp/vitagl -j8 NO_SPLASHSCREEN=1 STORE_DEPTH_STENCIL=1 HAVE_PTHREAD=1 HAVE_GLSL_TEXTURE_SIZE=1 HAVE_SHADER_CACHE=1 HAVE_SHARK_LOG=${VITAGL_SHARK_LOG} LOG_ERRORS=${VITAGL_LOG_ERRORS} READBACKS_SPEEDHACK=${VITAGL_READBACKS_SPEEDHACK} install
 WORKDIR /project

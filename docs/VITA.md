@@ -1,10 +1,12 @@
 # PS Vita port development
 
-This work is in progress. A DK64 Vita VPK builds and runs the intro, main menu,
-opening Adventure story, and player movement/jumping in DK's house through
-vitaGL on Vita3K/Vulkan. A native save reload also reaches movement and swimming
-in Training Grounds. Broader gameplay, framebuffer effects, and performance
-still require validation; this is not a completed release.
+The reduced RT64 renderer, ARMv7 runtime and DK64 Vita frontend are implemented.
+Vita3K/Vulkan validation covers the intro, main menu, opening Adventure story,
+movement and swimming, two pause/resume cycles, all four Klamour practice
+difficulties, and a successful fairy photograph with a fresh-process save reload.
+The camera run uses an explicit test fixture, not normal quest progression.
+Broader gameplay, physical-Vita behavior and performance still require validation;
+the packages are development builds, not a compatibility-certified release.
 
 The target is a reusable reduced RT64 renderer, followed by the DK64 runtime and
 Vita frontend. RT64's existing renderer uses compute shaders for vertex processing,
@@ -234,6 +236,15 @@ loop, keeping the original allocation and texture-only fallback. Rabbit speed
 and Krazy Kong Klamour durations also carry the upstream lag adjustments; Klamour
 retains its original byte-sized difficulty value and expands it at the 16-bit
 timer consumer to avoid overwriting adjacent overlay data.
+
+The original visibility query now receives the requested GPU depth pixel through
+an ordered runtime readback, then runs its original compressed-Z decoder. Native
+controls verify shared depth, odd-size viewports, precision boundaries and partial
+byte ranges. The camera probe verifies both a miss and a successful photograph,
+their exact pixels, both deferred frees, the reward and return to movement; a
+second process verifies the saved collection flag before changing any fixture
+prerequisites. See [depth validation](VITA_DEPTH_VALIDATION.md) and
+[camera/save validation](VITA_CAMERA_VALIDATION.md) for the exact scope and inputs.
 
 The rest of the Klamour handler is now compared against compiled upstream in
 2946 paired cases: 18 initialization cases across all four difficulties and
@@ -798,11 +809,12 @@ C hook's enable flag.
 
 ## Work remaining
 
-- Implement general framebuffer-to-texture feedback and the remaining VI
-  stride/scaling behavior; validate depth/blender
-  and texture corner cases against game output.
-- Expand DK64 validation beyond the opening story and Training Grounds, including
-  pause screens, camera/framebuffer effects, minigames, and longer save round trips.
+- Extend the existing framebuffer feedback to unsupported mixed views and general
+  color/depth aliasing, and implement the remaining VI stride/scaling behavior.
+  Validate depth/blender and texture corner cases against additional game output.
+- Expand DK64 validation beyond the tested story, Training Grounds, Klamour
+  practice and camera fixtures, including normal quest progression, other
+  framebuffer effects, minigames and longer save round trips.
   Dynamic code mods remain disabled in the Vita build.
 - Extend unsupported microcodes and extended GBI commands as required by other
   recompilation projects. A working DK64 path does not establish their coverage.
@@ -819,7 +831,7 @@ validation requirements.
 ## Renderer validation build
 
 ```sh
-docker build --platform linux/amd64 -t dk64-vita-build -f platform/vita/Dockerfile .
+docker build --platform linux/amd64 -t dk64-vita-build -f platform/vita/Dockerfile platform/vita
 docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build \
     cmake -S . -B build/vita -DDK64_VITA=ON -DDK64_VITA_GAME=OFF -DCMAKE_BUILD_TYPE=Release
 docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build \
@@ -896,7 +908,7 @@ image without shader or file logging:
 ```sh
 docker build --platform linux/amd64 -f platform/vita/Dockerfile \
     --build-arg VITAGL_SHARK_LOG=0 --build-arg VITAGL_LOG_ERRORS=0 \
-    -t dk64-vita-build-quiet .
+    -t dk64-vita-build-quiet platform/vita
 docker run --rm --platform linux/amd64 -v "$PWD:/project" dk64-vita-build-quiet \
     cmake -S . -B build/vita-hardware -DDK64_VITA=ON \
     -DDK64_VITA_DIAGNOSTICS=OFF -DDK64_VITA_PROFILE_FUNCTIONS=OFF \

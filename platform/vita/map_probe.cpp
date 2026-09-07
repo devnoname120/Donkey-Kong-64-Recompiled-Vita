@@ -141,7 +141,8 @@ extern "C" bool dk64_vita_map_probe_input(uint16_t *buttons,float *x,float *y) {
     const uint32_t packet=published_input.load(std::memory_order_acquire);
     if(!(packet&0x10)) return false;
     *buttons=packet>>16;
-    auto axis=[](unsigned code) { return code==1?-0.6f:code==2?0.6f:0.0f; };
+    const float magnitude=(packet&0x20)?0.125f:0.6f;
+    auto axis=[magnitude](unsigned code) { return code==1?-magnitude:code==2?magnitude:0.0f; };
     *x=axis(packet&3);*y=axis((packet>>2)&3);
     return true;
 }

@@ -172,6 +172,37 @@ build results and SP submissions; queue/thread fields are sampled on serialized
 guest threads. It neither schedules tasks nor injects controller input. Function
 profiling is rejected for this probe because both modes intercept SP submission.
 
+## Quiet depth/camera package recheck
+
+On 2026-09-07, the quiet package containing the depth bridge and corrected
+floating-point conversion ran for 90 seconds in the same Linux AArch64 Vita3K
+`496939b6` build, using Vulkan/Lavapipe, external-host mapping and CPU optimization
+enabled. The local record is
+`build/vita3k-linux-control/audio-validation/final-lazy-opt/`.
+
+The VPK SHA-256 is
+`c5f4a9d00631978d64a48a8670294e048e99af8bb242a3bf9da42d4e57d33afc`;
+its eboot SHA-256 is
+`09f9c91a20e075d9021fcfb724295dbac5ccf0afb5097fbb1a3e37aaaf79993e`.
+There was nonzero output through the end of the 88.035-second PulseAudio capture,
+and no exact-zero gaps of at least 10 ms in capture seconds 15-50. Both save hashes
+were unchanged. Screenshots at 20, 40, 60 and 80 seconds show progression through
+attract mode. The harness's emulator exit 124 is an intentional timeout, not a
+graceful shutdown.
+
+Gaps remain: 40.5 ms and 12.5625 ms near second 51, and longer startup/loading
+silences, including 444.6875 ms near second 13.31. This recheck does not establish
+audible fidelity, physical-device latency, or that depth-readback changes caused
+an audio improvement. It also does not remove the optimized emulator's separate
+intermittent full-game failures described in the camera validation.
+
+CPU optimization is a material test variable. Earlier quiet runs with it disabled
+had frequent underruns; the previously released `72c67b5` package also reproduced
+them in the matched external-host/no-optimization control. Those results cannot
+be compared directly with the optimized steady-playback measurements above or
+used alone to assign a regression to the new depth path. The no-optimization
+camera runs validate game behavior, not full-speed audio delivery.
+
 ## Separate capture build
 
 `DK64_VITA_AUDIO_CAPTURE=ON` creates **DK64 Audio Probe**, title `DK64AU001`, with

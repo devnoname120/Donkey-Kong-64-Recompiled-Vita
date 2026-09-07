@@ -173,6 +173,12 @@ func = "func_global_asm_806FFF88"
 before_vram = 0x806FFFF8
 text = "{ extern void dk64_vita_sync_framebuffer(uint8_t*, uint32_t, uint32_t, uint32_t); dk64_vita_sync_framebuffer(rdram, (uint32_t)ctx->r8, MEM_HU(0, 0xffffffff80744490ULL), MEM_HU(0, 0xffffffff80744494ULL)); }"
 
+# Keep the original packed-Z decoder and its world-distance lookup for camera
+# recognition and visibility tests, but make the queried GPU pixel visible first.
+[[patches.hook]]
+func = "func_global_asm_80700AE4"
+text = "{ extern void dk64_vita_read_depth(uint8_t*, recomp_context*); dk64_vita_read_depth(rdram, ctx); }"
+
 # patches_framebuffer.c keeps half the sampled lag as f32. Capture the original
 # mul.s result before trunc.w.s, then correct its eight consumers. Keep the
 # original CPU framebuffer ownership, blur, drawing and deferred-free paths.

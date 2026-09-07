@@ -96,6 +96,9 @@ int main() {
             check(dk64_vita_map_probe_input(&buttons,&sx,&sy),"missing map input override");
             check(buttons==expected && sx==x && sy==y,"map input packet decoded incorrectly");
         };
+        decode(0x40000030U|1U|(2U<<2),0x4000,-0.125f,0.125f);
+        decode(0x30U|2U|(1U<<2),0,0.125f,-0.125f);
+        decode(0x30U,0,0,0);
         const float positions[6][2]={{-0.6f,0.6f},{0,0.6f},{0.6f,0.6f},{-0.6f,-0.6f},{0.6f,-0.6f},{0,-0.6f}};
         MEM_W(4,info)=0x3f800000;MEM_H(0,info)=129;MEM_B(0x23,aad)=5;MEM_B(0x18,aad)=0;
         for(unsigned slot=0;slot<6;++slot) {

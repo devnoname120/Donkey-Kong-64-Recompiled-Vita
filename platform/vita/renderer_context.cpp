@@ -5,60 +5,16 @@
 #include <cstdio>
 #include <psp2/kernel/processmgr.h>
 #include "log.h"
-#include "draw_trace.h"
 #include "vi.h"
 #include "memory_writes.h"
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
-#include <unordered_set>
+#include "trace_sink.h"
 #endif
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER || DK64_VITA_SCRIPTED_INPUT
 #include <psp2/io/fcntl.h>
 #endif
 
 namespace {
-#if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
-class TraceSink final : public RT64::FastDrawSink {
-    std::unique_ptr<RT64::FastDrawSink> backend;
-    std::unordered_set<uint64_t> textures;
-    unsigned draw_reports=0;
-public:
-    explicit TraceSink(std::unique_ptr<RT64::FastDrawSink> sink) : backend(std::move(sink)) {}
-    void startTask(uint64_t task) {
-        if(task==480) { draw_reports=0; textures.clear(); vita_log("Capturing render task 480"); }
-    }
-    void draw(const RT64::FastDraw &draw) override {
-        if(draw_reports<14) trace_fast_draw(draw,++draw_reports,vita_log);
-        for(unsigned i=0;i<2;++i) if(draw.textures[i] && textures.size()<8) {
-            const auto &t=*draw.textures[i];
-            if(textures.insert(t.hash).second) {
-                vita_log("Decoded texture %016llx %ux%u fmt=%u siz=%u",static_cast<unsigned long long>(t.hash),t.width,t.height,draw.tiles[i].fmt,draw.tiles[i].siz);
-                // GPU views have no CPU pixel payload to dump.
-                if(t.storage) continue;
-                char path[128]; std::snprintf(path,sizeof(path),"ux0:data/dk64recompiled/texture-%016llx.rgba",static_cast<unsigned long long>(t.hash));
-                SceUID fd=sceIoOpen(path,SCE_O_WRONLY|SCE_O_CREAT|SCE_O_TRUNC,0777);
-                if(fd>=0) { const int written=sceIoWrite(fd,t.rgba.data(),t.rgba.size()); sceIoClose(fd); if(written!=int(t.rgba.size())) vita_log("Texture capture write failed"); }
-            }
-        }
-        backend->draw(draw);
-    }
-    void fullSync() override { backend->fullSync(); }
-    void flushDraws() override { backend->flushDraws(); }
-    void setRDRAM(const uint8_t *rdram,size_t size) override { backend->setRDRAM(rdram,size); }
-    void setMemoryWriteTracking(std::function<void(uint32_t,uint32_t,bool)> watch) override { backend->setMemoryWriteTracking(std::move(watch)); }
-    void notifyMemoryWrites(const std::vector<RT64::FastMemoryWrite> &writes) override { backend->notifyMemoryWrites(writes); }
-    std::shared_ptr<const RT64::FastFramebuffer> snapshotFramebuffer(uint32_t address,uint32_t size) override {
-        return backend->snapshotFramebuffer(address,size);
-    }
-    bool readFramebufferSnapshot(const RT64::FastFramebuffer &snapshot,std::vector<uint8_t> &bytes) override {
-        return backend->readFramebufferSnapshot(snapshot,bytes);
-    }
-    void present(uint32_t address) override { backend->present(address); }
-    void present(const RT64::VI &vi) override { backend->present(vi); }
-    bool readFramebuffer(uint32_t address,uint32_t size,std::vector<uint8_t> &bytes) override {
-        return backend->readFramebuffer(address,size,bytes);
-    }
-};
-#endif
 class VitaRendererContext final : public ultramodern::renderer::RendererContext {
     std::unique_ptr<RT64::FastDrawSink> sink;
     std::unique_ptr<RT64::State> state;
@@ -76,7 +32,12 @@ public:
             // N64ModernRuntime's VI thread already provides frame pacing.
             sink = RT64::createFastVitaGLSink(false);
 #if DK64_VITA_PROFILE_FUNCTIONS || DK64_VITA_TRACE_RENDERER
-            sink=std::make_unique<TraceSink>(std::move(sink));
+#if DK64_VITA_SCRIPTED_INPUT
+            constexpr const char *trace_directory="ux0:data/dk64recompiled-probe";
+#else
+            constexpr const char *trace_directory="ux0:data/dk64recompiled";
+#endif
+            sink=std::make_unique<TraceSink>(std::move(sink),trace_directory);
 #endif
             state = std::make_unique<RT64::State>(rdram,recomp::mem_size,*sink);
             track_framebuffer_writes(*sink);
@@ -136,6 +97,12 @@ public:
             ++readbacks;
         }
 #endif
+        return bytes;
+    }
+    std::vector<uint8_t> read_depthbuffer(uint32_t address,uint32_t size) override {
+        submit_framebuffer_writes(*sink);
+        std::vector<uint8_t> bytes;
+        sink->readDepthFramebuffer(address,size,bytes);
         return bytes;
     }
     void update_screen() override {
