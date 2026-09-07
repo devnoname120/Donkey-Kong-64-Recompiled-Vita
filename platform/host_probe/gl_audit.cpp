@@ -11,6 +11,7 @@
 namespace {
     struct Counters {
         std::atomic<uint64_t> uniformCalls{0}, ignoredUniformCalls{0}, repeatedUniformCalls{0}, draws{0};
+        std::atomic<uint64_t> scissorCalls{0}, scissorEnables{0};
     } counts;
     GLuint program=0;
     std::map<std::pair<GLuint,GLint>,std::vector<uint8_t>> values;
@@ -22,8 +23,8 @@ namespace {
         previous.assign(static_cast<const uint8_t *>(data),static_cast<const uint8_t *>(data)+bytes);
     }
 }
-ProbeGLStats probeGLStats() { return {counts.uniformCalls.load(),counts.ignoredUniformCalls.load(),counts.repeatedUniformCalls.load(),counts.draws.load()}; }
-void resetProbeGLStats() { counts.uniformCalls=0; counts.ignoredUniformCalls=0; counts.repeatedUniformCalls=0; counts.draws=0; }
+ProbeGLStats probeGLStats() { return {counts.uniformCalls.load(),counts.ignoredUniformCalls.load(),counts.repeatedUniformCalls.load(),counts.draws.load(),counts.scissorCalls.load(),counts.scissorEnables.load()}; }
+void resetProbeGLStats() { counts.uniformCalls=0; counts.ignoredUniformCalls=0; counts.repeatedUniformCalls=0; counts.draws=0; counts.scissorCalls=0; counts.scissorEnables=0; }
 void reportProbeGLStats() {
     const auto snapshot=probeGLStats();
     std::fprintf(stderr,"PROBE GL: draws=%llu uniforms=%llu ignored_uniforms=%llu repeated_uniforms=%llu\n",
@@ -31,6 +32,10 @@ void reportProbeGLStats() {
         static_cast<unsigned long long>(snapshot.ignoredUniformCalls),static_cast<unsigned long long>(snapshot.repeatedUniformCalls));
 }
 extern "C" {
+void __real_glScissor(GLint,GLint,GLsizei,GLsizei);
+void __wrap_glScissor(GLint x,GLint y,GLsizei w,GLsizei h) { ++counts.scissorCalls; __real_glScissor(x,y,w,h); }
+void __real_glEnable(GLenum);
+void __wrap_glEnable(GLenum cap) { if(cap==GL_SCISSOR_TEST)++counts.scissorEnables; __real_glEnable(cap); }
 void __real_glUseProgram(GLuint);
 void __wrap_glUseProgram(GLuint value) { program=value; __real_glUseProgram(value); }
 void __real_glDeleteProgram(GLuint);

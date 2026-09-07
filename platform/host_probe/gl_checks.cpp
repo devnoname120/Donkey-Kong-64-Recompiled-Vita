@@ -119,6 +119,27 @@ static void checkUniformStateChanges(ProbeEGL &platform) {
         static_cast<unsigned long long>(repeated.draws),static_cast<unsigned long long>(repeated.uniformCalls));
     if(repeated.draws!=32 || repeated.uniformCalls)
         throw std::runtime_error("Identical draw state resubmitted uniforms to GLES");
+    std::printf("Repeated scissor workload: draws=%llu boxes=%llu enables=%llu\n",
+        static_cast<unsigned long long>(repeated.draws),static_cast<unsigned long long>(repeated.scissorCalls),
+        static_cast<unsigned long long>(repeated.scissorEnables));
+    if(repeated.scissorCalls || repeated.scissorEnables)
+        throw std::runtime_error("Identical draws dirtied the scissor mask again");
+    for(unsigned i=0;i<3;++i) {
+        draw.scissor={4,4,28,28};draw.primitive={1,0,0,1};sink->draw(draw);
+        if(i==0)glScissor(0,0,1,1);
+        if(i==1)glDisable(GL_SCISSOR_TEST);
+        if(i==2)sink->present(draw.colorAddress);
+        draw.scissor={4,4,28,28};draw.primitive={0,1,0,1};sink->draw(draw);
+        std::vector<uint8_t> actual;
+        if(!sink->readFramebuffer(draw.colorAddress,256,actual))throw std::runtime_error("Scissor framebuffer missing");
+        for(unsigned y=0;y<8;++y)for(unsigned x=0;x<8;++x) {
+            const bool inside=x>=1 && x<7 && y>=1 && y<7;
+            const unsigned at=(y*8+x)*4;
+            if(actual[at]!=(inside?0:255) || actual[at+1]!=(inside?255:0))
+                throw std::runtime_error("Scissor optimization lost changed, external or presentation state");
+        }
+        draw.scissor={0,0,32,32};draw.primitive={1,0,0,1};sink->draw(draw);
+    }
 }
 static void checkTextureUniformStateChanges(ProbeEGL &platform) {
     batching=false;

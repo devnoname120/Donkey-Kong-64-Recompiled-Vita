@@ -16,6 +16,7 @@
 #include <thread>
 #include <unordered_set>
 #include "../vita/memory_writes.h"
+#include "../vita/audio_queue.h"
 #ifdef PROBE_TRACE_FAULTS
 #include <execinfo.h>
 #include <signal.h>
@@ -44,7 +45,23 @@ static std::atomic<uint64_t> audio_samples{0};
 void report_resource_audit();
 static uint8_t *game_memory=nullptr;
 static auto start=std::chrono::steady_clock::now();
-static int run_seconds=45, present_ms=0;
+static int run_seconds=45, present_ms=0, graphics_ms=0;
+static bool audio_timing=false;
+static bool enable_rsp_yield=true;
+struct ProbeAudioDevice {
+    std::mutex mutex;
+    std::chrono::steady_clock::time_point opened;
+    uint32_t rate=0;
+    uint64_t frames=0,periods=0,padding=0;
+    void drain() {
+        if(!rate)return;
+        const uint64_t us=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-opened).count();
+        const uint64_t elapsed=us*rate/(1024ULL*1000000);
+        const uint64_t consumed=(elapsed-periods)*1024;
+        if(us>=5000000 && consumed>frames)padding+=consumed-frames;
+        frames=frames>consumed?frames-consumed:0;periods=elapsed;
+    }
+} audio_simulator;
 static bool enable_batching=true;
 static bool adventure_input=false;
 static bool pause_input=false;
@@ -142,7 +159,9 @@ public:
     bool update_config(const ultramodern::renderer::GraphicsConfig&,const ultramodern::renderer::GraphicsConfig&) override { return true; }
     void enable_instant_present() override {}
     bool defer_rsp_completion() const override { return true; }
+    bool supports_rsp_yield() const override { return enable_rsp_yield; }
     void send_dl(const OSTask *task) override {
+        if(graphics_ms) std::this_thread::sleep_for(std::chrono::milliseconds(graphics_ms));
         submit_framebuffer_writes(sink);
         sink.startTask(completed_tasks.load()+1);
         interpreter.loadUCodeGBI(task->t.ucode,task->t.ucode_data,true);
@@ -196,12 +215,16 @@ int main(int argc,char **argv) {
     sigemptyset(&action.sa_mask);
     sigaction(SIGSEGV,&action,nullptr); sigaction(SIGBUS,&action,nullptr);
 #endif
-    if(argc<2) { std::fprintf(stderr,"Usage: %s ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture]\n",argv[0]); return 1; }
+    if(argc<2) { std::fprintf(stderr,"Usage: %s ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture] [graphics_ms] [audio_timing:0|1] [rsp_yield:0|1]\n",argv[0]); return 1; }
     if(argc>2) run_seconds=std::atoi(argv[2]);
     if(argc>3) present_ms=std::atoi(argv[3]);
     if(argc>4) enable_batching=std::atoi(argv[4])!=0;
     if(argc>5) { pause_input=std::string(argv[5])=="pause"; adventure_input=pause_input||std::string(argv[5])=="adventure"; }
     if(argc>6) capture_only=std::string(argv[6])=="capture";
+    if(argc>7) graphics_ms=std::atoi(argv[7]);
+    if(argc>8) audio_timing=std::atoi(argv[8])!=0;
+    if(argc>9) enable_rsp_yield=std::atoi(argv[9])!=0;
+    if(graphics_ms<0 || graphics_ms>1000) { std::fprintf(stderr,"graphics_ms must be in 0..1000\n");return 1; }
     probe_directory=argv[1];
     std::setvbuf(stdout,nullptr,_IONBF,0); std::setvbuf(stderr,nullptr,_IONBF,0);
     std::set_terminate([] {
@@ -240,14 +263,39 @@ int main(int argc,char **argv) {
         return true;
     };
     config.input_callbacks.get_connected_device_info=[](int controller) { using namespace ultramodern::input;return connected_device_info_t{controller==0?Device::Controller:Device::None,Pak::None}; };
-    config.audio_callbacks.queue_samples=[](int16_t *,size_t count) { ++audio_buffers; audio_samples+=count; };
-    config.audio_callbacks.get_frames_remaining=[]() -> size_t { return 0; };
-    config.audio_callbacks.set_frequency=[](uint32_t frequency) { vita_log("Probe audio rate=%u",frequency); };
+    config.audio_callbacks.queue_samples=[](int16_t *,size_t count) {
+        ++audio_buffers; audio_samples+=count;
+        if(audio_timing) {
+            std::lock_guard lock{audio_simulator.mutex};
+            audio_simulator.drain();audio_simulator.frames+=count/2;
+        }
+        if(audio_timing) vita_log("PROBE PCM time_us=%llu frames=%zu",
+            static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-start).count()),count/2);
+    };
+    config.audio_callbacks.get_frames_remaining=[]() -> size_t {
+        if(!audio_timing)return 0;
+        std::lock_guard lock{audio_simulator.mutex};audio_simulator.drain();
+        return vita_audio_frames_remaining(audio_simulator.frames,audio_simulator.rate,1024);
+    };
+    config.audio_callbacks.set_frequency=[](uint32_t frequency) {
+        if(audio_timing) {
+            std::lock_guard lock{audio_simulator.mutex};
+            audio_simulator.rate=frequency;audio_simulator.opened=std::chrono::steady_clock::now();
+            audio_simulator.frames=audio_simulator.periods=audio_simulator.padding=0;
+        }
+        vita_log("Probe audio rate=%u",frequency);
+    };
     config.error_handling_callbacks.message_box=[](const char *message) { vita_log("PROBE ERROR: %s",message); };
     config.gfx_callbacks.update_gfx=[](void *) {
         if(std::chrono::steady_clock::now()-start>=std::chrono::seconds(run_seconds)) {
             vita_log("PROBE elapsed=%d completed_tasks=%u",run_seconds,completed_tasks.load());
             vita_log("PROBE audio_buffers=%u stereo_frames=%llu",audio_buffers.load(),static_cast<unsigned long long>(audio_samples.load()/2));
+            if(audio_timing) {
+                std::lock_guard lock{audio_simulator.mutex};audio_simulator.drain();
+                vita_log("PROBE audio_device_padding_after_5s=%llu queued_frames=%llu graphics_ms=%d rsp_yield=%u",
+                    static_cast<unsigned long long>(audio_simulator.padding),
+                    static_cast<unsigned long long>(audio_simulator.frames),graphics_ms,unsigned(enable_rsp_yield));
+            }
             report_resource_audit();
 #ifdef PROBE_GL_AUDIT
             reportProbeGLStats();

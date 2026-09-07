@@ -203,6 +203,36 @@ be compared directly with the optimized steady-playback measurements above or
 used alone to assign a regression to the new depth path. The no-optimization
 camera runs validate game behavior, not full-speed audio delivery.
 
+## Audio when graphics runs slowly
+
+The original scheduler's graphics-yield requests now work with the deferred-SP
+CPU renderer. Audio can run on its independent native worker without releasing
+graphics inputs before decoding completes. The change does not increase buffering,
+alter the audio clock, resample silence, or skip graphics tasks.
+
+Matched 90-second quiet-game captures with CPU optimization disabled reproduce
+the low-throughput condition. In capture seconds 15-50, `429aa71` produced 378
+exact-zero gaps lasting at least 10 ms, totaling 12.709 seconds. The first
+yield/scissor candidate produced three, totaling 0.446 seconds; these were near
+the initial scene transition rather than recurring throughout that interval.
+Both continued submitting nonzero output through recording end. The captures
+are `perf-baseline-noopt` and `perf-scissor-yield-noopt` under the local
+`build/vita3k-linux-control/audio-validation/` directory.
+
+The final package, after correcting SP/DP completion ownership and adding the CPU
+vertex/triangle improvements, repeated the slower-graphics run with one 406.208 ms
+gap in the same interval, not recurring small gaps. Its separate optimized run
+had zero qualifying gaps in that interval. Both recordings retained nonzero output
+through the end and unchanged save hashes. Startup and later transition gaps
+remain. The exact package hashes, configurations and evidence directories are in
+[VITA_PERFORMANCE_VALIDATION.md](VITA_PERFORMANCE_VALIDATION.md).
+
+This demonstrates a substantial scheduling improvement under the tested slower
+graphics path, not complete physical-device audio validation. Startup/load gaps
+and deadline misses under CPU contention remain possible. The later vertex/triangle
+optimizations and final package recheck are recorded in
+[VITA_PERFORMANCE_VALIDATION.md](VITA_PERFORMANCE_VALIDATION.md).
+
 ## Separate capture build
 
 `DK64_VITA_AUDIO_CAPTURE=ON` creates **DK64 Audio Probe**, title `DK64AU001`, with

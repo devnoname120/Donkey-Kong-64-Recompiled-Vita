@@ -726,6 +726,12 @@ with implicit producers, then verifies the shared producer preserves their order
 The CPU renderer also defers SP completion until `send_dl` finishes reading guest
 commands, vertices and matrices. This prevents the completion notification from
 allowing the game to reuse those inputs while decoding is still in progress.
+Logical graphics yielding now lets the original scheduler run audio on its
+independent worker during that interval without releasing graphics inputs or
+submitting the same display list twice. The renderer also avoids redundant
+scissor-mask updates, reuses temporary triangle storage, and transforms lighting
+directions once per vertex load. See [the performance and audio-load validation](VITA_PERFORMANCE_VALIDATION.md)
+for controlled before/after measurements and the limits of emulator evidence.
 
 A non-sanitized host run exposed the original audio loop's direct `AI_LEN` read
 at `0x80601F0C` (`0xA4500004`). The Vita recompiler configuration now replaces it
@@ -753,7 +759,7 @@ details and decoded textures, without instrumenting all recompiled functions.
 `platform/host_probe` builds the same generated Vita game against the native Linux
 runtime, with the 32 MiB guest memory limit, KSEG1 aliases, and fair graphics queue.
 `PROBE_GL=ON` enables the same raster backend through GLES2 and offscreen EGL. The
-`dk64_runtime_probe ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture]`
+`dk64_runtime_probe ROM_DIRECTORY [seconds] [presentation_ms] [batching:0|1] [adventure|pause] [capture] [graphics_ms] [audio_timing:0|1] [rsp_yield:0|1]`
 process deliberately exits at its time bound; it does not validate graceful
 shutdown or audio output. The optional `adventure` script supplies input through
 the runtime callback and logs maps, cutscenes, and player coordinates; it does

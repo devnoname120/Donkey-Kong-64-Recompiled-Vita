@@ -50,6 +50,7 @@ public:
     bool update_config(const ultramodern::renderer::GraphicsConfig&,const ultramodern::renderer::GraphicsConfig&) override { return true; }
     void enable_instant_present() override {}
     bool defer_rsp_completion() const override { return true; }
+    bool supports_rsp_yield() const override { return true; }
     void send_dl(const OSTask *task) override {
         submit_framebuffer_writes(*sink);
 #if DK64_VITA_DIAGNOSTICS

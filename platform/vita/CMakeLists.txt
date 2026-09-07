@@ -150,6 +150,15 @@ vita_create_vpk(RT64DepthControl.vpk RT64Z0001 rt64_depth_smoke.self
     VERSION 01.00 NAME "RT64 Depth Control")
 
 add_executable(rt64_semaphore_smoke semaphore_smoke.cpp)
+add_executable(rt64_cpu_smoke cpu_smoke.cpp)
+target_compile_features(rt64_cpu_smoke PRIVATE cxx_std_17)
+target_compile_options(rt64_cpu_smoke PRIVATE -fno-strict-aliasing)
+target_link_libraries(rt64_cpu_smoke PRIVATE rt64
+    "-Wl,--whole-archive" pthread "-Wl,--no-whole-archive" m)
+vita_create_self(rt64_cpu_smoke.self rt64_cpu_smoke UNSAFE)
+vita_create_vpk(RT64CpuControl.vpk RT64C0001 rt64_cpu_smoke.self
+    VERSION 01.00 NAME "RT64 CPU Control")
+
 target_compile_features(rt64_semaphore_smoke PRIVATE cxx_std_17)
 target_include_directories(rt64_semaphore_smoke PRIVATE ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty/concurrentqueue)
 target_link_libraries(rt64_semaphore_smoke PRIVATE "-Wl,--whole-archive" pthread "-Wl,--no-whole-archive")
