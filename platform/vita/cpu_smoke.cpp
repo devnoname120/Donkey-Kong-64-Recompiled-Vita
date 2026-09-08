@@ -2,6 +2,10 @@
 #include <cstdio>
 #define RT64_CPU_CONTROL
 #include "fast/tests/rt64_fast_rsp_checks.cpp"
+#define RT64_TMEM_CONTROL
+#include "fast/tests/rt64_fast_tmem_checks.cpp"
+#define RT64_VERTEX_INPUT_CONTROL
+#include "fast/tests/rt64_fast_vertex_input_checks.cpp"
 
 int _newlib_heap_size_user=64*1024*1024;
 unsigned int sceUserMainThreadStackSize=2*1024*1024;
@@ -11,8 +15,10 @@ int main() {
     FILE *output=std::fopen("ux0:data/rt64-cpu/results.log","w");
     if(!output)return 1;
     std::setvbuf(output,nullptr,_IONBF,0);
-    const int result=run_rsp_checks(true,output,output);
-    std::fprintf(output,"%s: RSP CPU control\n",result?"FAIL":"PASS");
+    int result=run_rsp_checks(true,output,output);
+    if(!result)result=TmemControl::run(true,false,output,output);
+    if(!result)result=VertexInputControl::run(false,output,output);
+    std::fprintf(output,"%s: RSP CPU control; TMEM exact-transfer checks\n",result?"FAIL":"PASS");
     std::fclose(output);
     return result;
 }
