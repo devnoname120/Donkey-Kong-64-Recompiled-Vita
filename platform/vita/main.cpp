@@ -197,7 +197,13 @@ namespace {
     }
 #endif
     void update(void *) {
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+        VitaBenchmark::traceUpdate(10);
+#endif
         SDL_PumpEvents();vita_log_guest_profile();
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+        VitaBenchmark::traceUpdate(11);
+#endif
 #if DK64_VITA_BENCHMARK
         VitaBenchmark::poll();
 #endif

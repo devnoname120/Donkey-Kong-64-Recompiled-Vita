@@ -3,6 +3,9 @@
 #include "ultramodern/renderer_context.hpp"
 #include "log.h"
 #include <stdexcept>
+#if DK64_VITA_BENCHMARK && defined(RT64_FAST_PROFILE_COARSE)
+#include "fps_benchmark.h"
+#endif
 
 extern "C" void dk64_vita_read_depth(uint8_t *rdram,recomp_context *ctx) {
     const int32_t x=int16_t(ctx->r4),y=int16_t(ctx->r5);
@@ -21,6 +24,11 @@ extern "C" void dk64_vita_read_depth(uint8_t *rdram,recomp_context *ctx) {
     static unsigned queries=0;
     const bool trace=queries++<16;
     if(trace)vita_log("Depth query request: address=%08x pixel=%d,%d width=%d",uint32_t(address),x,y,width);
+#endif
+#if DK64_VITA_BENCHMARK && defined(RT64_FAST_PROFILE_COARSE)
+    // Include queueing and the caller's wakeup, not only work performed after
+    // the request reaches the graphics thread. Normal builds have no span.
+    VitaBenchmark::Span depthRoundtrip{VitaBenchmark::Kind::DepthRoundtrip};
 #endif
     const auto bytes=ultramodern::renderer::read_depthbuffer(uint32_t(address),2);
 #if DK64_VITA_DIAGNOSTICS

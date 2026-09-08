@@ -47,6 +47,10 @@ def metrics(game: list[dict], graphics: list[dict]) -> dict:
 def compare(reference_rows: list[dict], reference_metadata: dict,
             candidate_rows: list[dict], candidate_metadata: dict, workload: str) -> dict:
     for metadata in (reference_metadata, candidate_metadata):
+        if metadata.get("debug_watchdog"):
+            raise ValueError("Debug watchdog captures cannot be used for FPS comparisons")
+        if metadata.get("external_input_attempted"):
+            raise ValueError("External input or screenshot attempts cannot be used for FPS comparisons")
         if metadata.get("profile_every") or metadata.get("profiles") or metadata.get("compiled_stage_profiling"):
             raise ValueError("Detailed profiling must be disabled for FPS comparisons")
     reference = summarize(reference_rows, [], reference_metadata)
@@ -77,7 +81,15 @@ def load(path: Path) -> tuple[list[dict], dict]:
     metadata = json.loads((path / (run + ".json")).read_text())
     if metadata.get("run") != run:
         raise ValueError("Run identity differs from its input manifest")
+    metadata["external_input_attempted"] = bool(manifest.get("external_input_attempted"))
     metadata["clean_shutdown_verified"] = verify_lifecycle(path, run)
+    if not metadata["clean_shutdown_verified"]:
+        raise ValueError("Directory comparison requires verified benchmark shutdown")
+    for filename, field in (("deployment.json", "restored"),
+                            ("save-verification.json", "normal_saves_unchanged")):
+        receipt_path = path / filename
+        if not receipt_path.exists() or json.loads(receipt_path.read_text()).get(field) is not True:
+            raise ValueError("Directory comparison requires verified executable restoration and save preservation")
     return read_csv(path / (run + ".csv")), metadata
 
 

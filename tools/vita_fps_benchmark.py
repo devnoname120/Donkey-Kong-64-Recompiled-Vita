@@ -185,6 +185,8 @@ def temporary_executable(device, payload: bytes, original: bytes, output: Path):
     (output / "original-eboot.bin").write_bytes(original)
     write_json(output / "deployment.json", report)
     device.put(staged, payload)
+    if device.get(staged) != payload:
+        raise RuntimeError("Staged benchmark failed readback verification; original executable unchanged")
     device.kill()
     if device.get(EBOOT) != original:
         raise ValueError("The installed executable changed before replacement")
@@ -378,6 +380,30 @@ def ensure_fresh_run(device, run_id: str) -> None:
         raise ValueError("Remote run identity already exists; use a new run ID")
 
 
+def wait_for_startup(device, output: Path, run_id: str, timeout: float = 20) -> None:
+    # A successful URI request can leave another app in the foreground. Only
+    # this run's own receipt establishes that the benchmark reached main().
+    path = DATA + "/" + run_id + "-started.json"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if device.exists(path):
+                receipt = device.get(path, limit=65536)
+                info = json.loads(receipt)
+                if info.get("schema") != 1 or info.get("run") != run_id:
+                    raise ValueError("Unexpected benchmark startup receipt")
+                (output / (run_id + "-started.json")).write_bytes(receipt)
+                print("benchmark startup verified", flush=True)
+                return
+        except FileNotFoundError:
+            pass
+        except ftplib.all_errors as error:
+            print("startup probe:", str(error), flush=True)
+        if time.monotonic() >= deadline:
+            raise TimeoutError("DK64 did not reach verified startup; inspect the Vita's foreground screen before retrying")
+        time.sleep(1)
+
+
 def run(args) -> dict:
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -408,6 +434,14 @@ def record_lifecycle(device, before: dict, output: Path, run_id: str) -> dict:
             shutdown = json.loads(shutdown_path.read_text())
             report["shutdown_complete"] = (shutdown.get("run") == run_id
                 and shutdown.get("runtime_joined") is True and shutdown.get("exit_code") == 0)
+        # These files belong to this run. Collect them after measurement and
+        # restoration, including when startup succeeded but the capture stalled.
+        for suffix in ("-startup.txt", "-watchdog.log", "-progress.bin"):
+            try:
+                trace = device.get(DATA + "/" + run_id + suffix, limit=1024*1024)
+            except FileNotFoundError:
+                continue
+            (output / (run_id + suffix)).write_bytes(trace)
     except Exception as error:
         report["inspection_error"] = str(error)
         raise
@@ -435,7 +469,9 @@ def run_on_device(args, device) -> dict:
     write_json(args.output / "input.json", manifest)
     for name, repo in (("game", "."), ("rt64", "lib/rt64"), ("runtime", "lib/N64ModernRuntime")):
         (args.output / (name + "-revision.txt")).write_bytes(subprocess.check_output(["git", "-C", repo, "rev-parse", "HEAD"]))
-        (args.output / (name + "-working.patch")).write_bytes(subprocess.check_output(["git", "-C", repo, "diff", "--binary"]))
+        # Include staged edits as well. This audits the current checkout; the
+        # immutable package hash still identifies the executable actually run.
+        (args.output / (name + "-working.patch")).write_bytes(subprocess.check_output(["git", "-C", repo, "diff", "--binary", "HEAD"]))
     device.mkdir(DATA)
     ensure_fresh_run(device, args.run_id)
     device.mkdir(DATA + "/saves")
@@ -456,61 +492,51 @@ def run_on_device(args, device) -> dict:
     configuration = (f"version=1\nrun={args.run_id}\nscenario={args.scenario}\nseconds={args.seconds}\nprofile_every={args.profile_every}\n").encode()
     device.put(DATA + "/run.cfg", configuration)
     (args.output / "run.cfg").write_bytes(configuration)
-    device.command("release all")
-    with temporary_executable(device, payload, original, args.output):
-        device.launch()
-        deadline = time.monotonic() + args.seconds + 90
-        started = False
-        while time.monotonic() < deadline:
-            try:
-                start_ready = started or device.exists(DATA + "/" + args.run_id + "-started.json")
-                complete_ready = device.exists(DATA + "/" + args.run_id + ".json")
-            except ftplib.all_errors as error:
-                print("result probe:", str(error), flush=True)
-                time.sleep(2)
-                continue
-            if not started and start_ready:
+    # The fixture supplies input inside DK64. Even a global reset can finish a
+    # pre-existing UI gesture, so the runner sends no controller commands.
+    try:
+        with temporary_executable(device, payload, original, args.output):
+            device.launch()
+            deadline = time.monotonic() + args.seconds + 90
+            wait_for_startup(device, args.output, args.run_id)
+            while time.monotonic() < deadline:
                 try:
-                    start = device.get(DATA + "/" + args.run_id + "-started.json", limit=65536)
-                    if json.loads(start).get("run") != args.run_id:
-                        raise ValueError("Unexpected start receipt")
-                    (args.output / (args.run_id + "-started.json")).write_bytes(start)
-                    started = True
-                    print("benchmark startup verified", flush=True)
+                    complete_ready = device.exists(DATA + "/" + args.run_id + ".json")
+                except ftplib.all_errors as error:
+                    print("result probe:", str(error), flush=True)
+                    time.sleep(2)
+                    continue
+                if not complete_ready:
+                    time.sleep(5)
+                    continue
+                try:
+                    data = device.get(DATA + "/" + args.run_id + ".json", limit=65536)
+                except FileNotFoundError:
+                    time.sleep(5)
+                    continue
+                (args.output / (args.run_id + ".json")).write_bytes(data)
+                for suffix in (".csv", "-profile.csv"):
+                    (args.output / (args.run_id + suffix)).write_bytes(device.get(DATA + "/" + args.run_id + suffix))
+                shutdown_deadline = min(deadline, time.monotonic() + 30)
+                shutdown_path = DATA + "/" + args.run_id + "-shutdown.json"
+                while not device.exists(shutdown_path):
+                    if time.monotonic() >= shutdown_deadline:
+                        raise TimeoutError("Capture completed, but runtime shutdown did not finish")
+                    time.sleep(1)
+                (args.output / (args.run_id + "-shutdown.json")).write_bytes(device.get(shutdown_path, limit=65536))
+                break
+            else:
+                try:
+                    (args.output / "failure.txt").write_bytes(device.get(DATA + "/failure.txt", limit=65536))
                 except FileNotFoundError:
                     pass
-            if not complete_ready:
-                time.sleep(5)
-                continue
-            try:
-                data = device.get(DATA + "/" + args.run_id + ".json", limit=65536)
-            except FileNotFoundError:
-                time.sleep(5)
-                continue
-            if not started:
-                raise RuntimeError("Completion received without a verified startup")
-            (args.output / (args.run_id + ".json")).write_bytes(data)
-            for suffix in (".csv", "-profile.csv"):
-                (args.output / (args.run_id + suffix)).write_bytes(device.get(DATA + "/" + args.run_id + suffix))
-            shutdown_deadline = min(deadline, time.monotonic() + 30)
-            shutdown_path = DATA + "/" + args.run_id + "-shutdown.json"
-            while not device.exists(shutdown_path):
-                if time.monotonic() >= shutdown_deadline:
-                    raise TimeoutError("Capture completed, but runtime shutdown did not finish")
-                time.sleep(1)
-            (args.output / (args.run_id + "-shutdown.json")).write_bytes(device.get(shutdown_path, limit=65536))
-            break
-        else:
-            try:
-                (args.output / "failure.txt").write_bytes(device.get(DATA + "/failure.txt", limit=65536))
-            except FileNotFoundError:
-                pass
-            raise TimeoutError("The benchmark did not complete before its hard deadline")
-    after = {name: device.get(SAVES + "/" + name) for name in device.list(SAVES) if name not in (".", "..")}
-    write_json(args.output / "save-verification.json", {"normal_saves_unchanged": before == after,
-               "after": {name: digest(value) for name, value in after.items()}})
-    if before != after:
-        raise RuntimeError("Normal save files changed during benchmarking")
+                raise TimeoutError("The benchmark did not complete before its hard deadline")
+    finally:
+        after = {name: device.get(SAVES + "/" + name) for name in device.list(SAVES) if name not in (".", "..")}
+        write_json(args.output / "save-verification.json", {"normal_saves_unchanged": before == after,
+                   "after": {name: digest(value) for name, value in after.items()}})
+        if before != after:
+            raise RuntimeError("Normal save files changed during benchmarking")
     return {"run": args.run_id}
 
 

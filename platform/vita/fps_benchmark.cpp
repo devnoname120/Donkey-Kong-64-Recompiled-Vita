@@ -16,6 +16,7 @@
 #include <vector>
 #ifdef DK64_FPS_DEBUG_WATCHDOG
 #include <thread>
+extern std::atomic_bool exited;
 #endif
 
 namespace VitaBenchmark {
@@ -37,7 +38,7 @@ Phase phase=Phase::Setup;
 std::mutex mutex;
 std::vector<Event> events;
 std::vector<Sample> samples;
-std::array<uint32_t,8> sequences{};
+std::array<uint32_t,unsigned(Kind::Count)> sequences{};
 std::array<std::atomic<int>,3> threads{};
 std::atomic<bool> enabled{false};
 uint64_t origin=0,nextPoll=0,firstInput=0;
@@ -47,6 +48,15 @@ bool exported=false;
 int exitCode=1;
 #ifdef DK64_FPS_DEBUG_WATCHDOG
 std::atomic<unsigned> diagnosticStage{0},diagnosticGames{0},diagnosticInputs{0},diagnosticSpans{0};
+std::atomic<unsigned> diagnosticUpdates{0};
+struct Watchdog {
+    std::thread worker;
+    void stop() {
+        enabled.store(false,std::memory_order_release);
+        if(worker.joinable())worker.join();
+    }
+    ~Watchdog() { stop(); }
+} watchdog;
 #endif
 
 bool writeEvents(const std::string &path,const std::vector<Event> &rows) {
@@ -114,10 +124,20 @@ void exportData(uint64_t now) {
 #else
         constexpr const char *compiledProfile="false";
 #endif
-        metadata=std::fprintf(file,"{\"schema\":1,\"run\":\"%s\",\"scenario\":\"%s\",\"complete\":true,\"valid\":%s,\"phase\":%u,\"events\":%u,\"profiles\":%u,\"dropped\":%u,\"dropped_profiles\":%u,\"duration_us\":%llu,\"profile_every\":%u,\"compiled_stage_profiling\":%s,\"display_swap_calls\":%u}\n",
+#ifdef RT64_FAST_PROFILE_COARSE
+        constexpr const char *coarseProfile="true";
+#else
+        constexpr const char *coarseProfile="false";
+#endif
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+        constexpr const char *watchdog="true";
+#else
+        constexpr const char *watchdog="false";
+#endif
+        metadata=std::fprintf(file,"{\"schema\":1,\"run\":\"%s\",\"scenario\":\"%s\",\"complete\":true,\"valid\":%s,\"phase\":%u,\"events\":%u,\"profiles\":%u,\"dropped\":%u,\"dropped_profiles\":%u,\"duration_us\":%llu,\"profile_every\":%u,\"compiled_stage_profiling\":%s,\"coarse_stage_profiling\":%s,\"debug_watchdog\":%s,\"display_swap_calls\":%u}\n",
             config.run.c_str(),config.scenario==Scenario::Attract?"attract":"world",valid?"true":"false",unsigned(finalPhase),
             unsigned(rows.size()),unsigned(profiles.size()),dropped,droppedProfiles,
-            static_cast<unsigned long long>(now-origin),config.profileEvery,compiledProfile,swaps)>0;
+            static_cast<unsigned long long>(now-origin),config.profileEvery,compiledProfile,coarseProfile,watchdog,swaps)>0;
         if(std::fclose(file)!=0)metadata=false;
     }
     if(metadata && std::rename((prefix+".json.part").c_str(),(prefix+".json").c_str())!=0)metadata=false;
@@ -129,6 +149,9 @@ void exportData(uint64_t now) {
 }
 }
 int finishShutdown() {
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+    watchdog.stop();
+#endif
     if(!exported)return 1;
     const auto path=std::string(directory)+"/"+config.run+"-shutdown.json";
     FILE *file=std::fopen((path+".part").c_str(),"w");
@@ -140,6 +163,12 @@ int finishShutdown() {
     return ok?exitCode:2;
 }
 uint64_t clockNow() { return sceKernelGetProcessTimeWide(); }
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+void traceUpdate(unsigned stage) {
+    diagnosticStage=stage;
+    if(stage==10)++diagnosticUpdates;
+}
+#endif
 void completedSwap() {
     std::lock_guard lock{mutex};
     if(enabled.load(std::memory_order_relaxed))++displaySwaps;
@@ -168,18 +197,23 @@ void initialize() {
     if(!ok)throw std::runtime_error("Incomplete FPS benchmark start receipt");
     enabled.store(true,std::memory_order_release);
 #ifdef DK64_FPS_DEBUG_WATCHDOG
-    std::thread([] {
-        for(unsigned n=0;n<30 && enabled.load();++n) {
-            sceKernelDelayThread(3000000);
-            const auto path=std::string(directory)+"/"+config.run+"-watchdog.log";
-            if(FILE *f=std::fopen(path.c_str(),"a")) {
-                std::fprintf(f,"time=%llu poll=%u games=%u input=%u spans=%u\n",
+    watchdog.worker=std::thread([] {
+        char path[256];
+        std::snprintf(path,sizeof(path),"%s/%s-watchdog.log",directory,config.run.c_str());
+        // Remain available through a stalled capture's host deadline, but stop
+        // promptly and join before normal process teardown.
+        for(unsigned n=0;n<110 && enabled.load();++n) {
+            for(unsigned tick=0;tick<30 && enabled.load();++tick)sceKernelDelayThread(100000);
+            if(!enabled.load())break;
+            if(FILE *f=std::fopen(path,"a")) {
+                std::fprintf(f,"time=%llu poll=%u games=%u input=%u spans=%u updates=%u quitting=%u\n",
                     static_cast<unsigned long long>(clockNow()-origin),diagnosticStage.load(),
-                    diagnosticGames.load(),diagnosticInputs.load(),diagnosticSpans.load());
+                    diagnosticGames.load(),diagnosticInputs.load(),diagnosticSpans.load(),
+                    diagnosticUpdates.load(),unsigned(exited.load()));
                 std::fclose(f);
             }
         }
-    }).detach();
+    });
 #endif
 }
 void fail(const char *message) noexcept {
@@ -198,7 +232,8 @@ Span::Span(Kind value):kind(value) {
         scene=latest;phase=VitaBenchmark::phase;
         sequence=++sequences[unsigned(kind)];
     }
-    threads[1].store(sceKernelGetThreadId(),std::memory_order_relaxed);
+    if(kind==Kind::Graphics || kind==Kind::Present || kind==Kind::DepthRead || kind==Kind::ColorRead)
+        threads[1].store(sceKernelGetThreadId(),std::memory_order_relaxed);
 #ifdef RT64_FAST_PROFILE
     sampled=config.profileEvery && sequence%config.profileEvery==0;
     previous=RT64::FastProfile::current;

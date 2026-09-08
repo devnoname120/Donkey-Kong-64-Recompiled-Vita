@@ -117,7 +117,10 @@ if(DK64_VITA_GAME)
     if(DK64_VITA_BENCHMARK)
         target_sources(DK64Recompiled PRIVATE fps_benchmark.cpp)
         if(DK64_VITA_BENCHMARK_WATCHDOG)
-            set_property(SOURCE fps_benchmark.cpp APPEND PROPERTY COMPILE_DEFINITIONS DK64_FPS_DEBUG_WATCHDOG)
+            target_compile_definitions(DK64Recompiled PRIVATE DK64_FPS_DEBUG_WATCHDOG)
+            # The watchdog adds imports whose SCE metadata can exceed the
+            # default segment gap during vita-elf-create conversion.
+            target_link_options(DK64Recompiled PRIVATE -Wl,-z,max-page-size=0x10000)
         endif()
         target_link_options(DK64Recompiled PRIVATE -Wl,--wrap=dk64_vita_calculate_lag -Wl,--wrap=vglSwapBuffers)
     endif()
@@ -174,6 +177,14 @@ target_link_libraries(rt64_cpu_smoke PRIVATE rt64
 vita_create_self(rt64_cpu_smoke.self rt64_cpu_smoke UNSAFE)
 vita_create_vpk(RT64CpuControl.vpk RT64C0001 rt64_cpu_smoke.self
     VERSION 01.00 NAME "RT64 CPU Control")
+
+add_executable(rt64_texture_memory_smoke texture_memory_smoke.cpp)
+target_compile_features(rt64_texture_memory_smoke PRIVATE cxx_std_17)
+target_include_directories(rt64_texture_memory_smoke PRIVATE ${CMAKE_SOURCE_DIR}/lib/rt64/src)
+target_link_libraries(rt64_texture_memory_smoke PRIVATE SceIofilemgr_stub SceLibKernel_stub ScePower_stub)
+vita_create_self(rt64_texture_memory_smoke.self rt64_texture_memory_smoke UNSAFE)
+vita_create_vpk(RT64TextureMemoryControl.vpk RT64T0001 rt64_texture_memory_smoke.self
+    VERSION 01.00 NAME "RT64 Texture Memory Control")
 
 target_compile_features(rt64_semaphore_smoke PRIVATE cxx_std_17)
 target_include_directories(rt64_semaphore_smoke PRIVATE ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty/concurrentqueue)

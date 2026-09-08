@@ -43,6 +43,18 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "profil"):
             compare(*capture(), rows, metadata, "rap-crowd")
 
+    def test_external_screenshot_input_is_not_a_timing_control(self):
+        rows, metadata = capture()
+        metadata["external_input_attempted"] = True
+        with self.assertRaisesRegex(ValueError, "External input"):
+            compare(*capture(), rows, metadata, "rap-crowd")
+
+    def test_debug_watchdog_is_not_a_timing_control(self):
+        rows, metadata = capture()
+        metadata["debug_watchdog"] = True
+        with self.assertRaisesRegex(ValueError, "watchdog"):
+            compare(*capture(), rows, metadata, "rap-crowd")
+
     def test_compiled_profile_branches_are_not_a_quiet_control(self):
         rows, metadata = capture()
         metadata["compiled_stage_profiling"] = True
@@ -75,6 +87,32 @@ class ComparisonTests(unittest.TestCase):
     def test_historical_measurements_do_not_claim_clean_shutdown(self):
         result = compare(*capture(), *capture(40000, 30000), "rap-crowd")
         self.assertIs(result.get("clean_shutdown_verified"), False)
+
+    def test_directory_without_shutdown_proof_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary)
+            (path / "input.json").write_text(json.dumps({"run": "test"}))
+            (path / "test.json").write_text(json.dumps(capture()[1]))
+            with self.assertRaisesRegex(ValueError, "verified benchmark shutdown"):
+                load(path)
+
+    def test_directory_requires_restoration_and_save_proof(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary)
+            (path / "input.json").write_text(json.dumps({"run": "test"}))
+            (path / "test.json").write_text(json.dumps(capture()[1]))
+            (path / "lifecycle.json").write_text(json.dumps({"run": "test", "shutdown_complete": True,
+                "new_core_dumps": []}))
+            with patch("compare_vita_fps.read_csv", return_value=capture()[0]):
+                for restored, preserved in ((None, None), (False, True), (True, False)):
+                    if restored is not None:
+                        (path / "deployment.json").write_text(json.dumps({"restored": restored}))
+                        (path / "save-verification.json").write_text(json.dumps({"normal_saves_unchanged": preserved}))
+                    with self.assertRaisesRegex(ValueError, "restoration and save preservation"):
+                        load(path)
+                (path / "deployment.json").write_text(json.dumps({"restored": True}))
+                (path / "save-verification.json").write_text(json.dumps({"normal_saves_unchanged": True}))
+                self.assertTrue(load(path)[1]["clean_shutdown_verified"])
 
 
 if __name__ == "__main__":

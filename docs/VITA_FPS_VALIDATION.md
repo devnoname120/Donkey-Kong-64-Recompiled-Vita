@@ -1,5 +1,10 @@
 # Physical Vita FPS validation
 
+The subsequent [second performance pass](VITA_FPS_PASS2_VALIDATION.md) records
+triangle grouping, exact NEON texture-cache comparisons, and a correction to the
+cached dependency image's scratch-buffer configuration. Consult that correction
+before treating an older build as proof that scratch allocation was disabled.
+
 ## Scope
 
 This pass measures new game-loop iterations and CPU graphics-task latency on the

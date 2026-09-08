@@ -3,7 +3,7 @@
 #include "fast/rt64_fast_profile.h"
 
 namespace VitaBenchmark {
-enum class Kind : uint32_t { Game=1, Graphics, Present, Clocks, Thread, DepthRead, ColorRead };
+enum class Kind : uint32_t { Game=1, Graphics, Present, Clocks, Thread, DepthRead, ColorRead, DepthRoundtrip, Count };
 void initialize();
 int finishShutdown();
 void poll();
@@ -13,6 +13,9 @@ void fail(const char *message) noexcept;
 void milestone(const char *message);
 uint64_t clockNow();
 void completedSwap();
+#ifdef DK64_FPS_DEBUG_WATCHDOG
+void traceUpdate(unsigned stage);
+#endif
 class Span {
     Kind kind;
     Scene scene{};

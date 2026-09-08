@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 from pathlib import Path
+from types import SimpleNamespace
 
 import vita_fps_benchmark as bench
 
@@ -30,6 +31,121 @@ class FakeDevice:
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_corrupt_upload_never_replaces_the_installed_executable(self):
+        class CorruptDevice(FakeDevice):
+            def put(self, path, data):
+                super().put(path, data[:-1])
+        device = CorruptDevice()
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(RuntimeError, "Staged benchmark"):
+                with bench.temporary_executable(device, b"benchmark", b"normal", Path(temporary)):
+                    self.fail("Corrupt benchmark reached launch")
+            self.assertEqual(device.get(bench.EBOOT), b"normal")
+            self.assertEqual(device.commands, [])
+
+    def test_failed_capture_verifies_saves_without_restoring_an_old_save(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temporary:
+                device = FakeDevice()
+                device.files.update({bench.SAVES + "/DK64.bin": b"save",
+                                     bench.SAVES + "/DK64.bin.bak": b"backup",
+                                     bench.DATA + "/DK64.z64": b"rom"})
+                device.mkdir = Mock()
+                device.list = Mock(return_value=["DK64.bin", "DK64.bin.bak"])
+                device.command = Mock(return_value="version")
+                def launch():
+                    if changed:
+                        device.files[bench.SAVES + "/DK64.bin"] = b"later save"
+                device.launch = launch
+                root = Path(temporary)
+                for name, data in (("original", b"normal"), ("package", b"benchmark"), ("rom", b"rom")):
+                    (root / name).write_bytes(data)
+                args = SimpleNamespace(run_id="interrupted", seconds=120, profile_every=0,
+                    output=root / "run", original=root / "original", package=root / "package",
+                    rom=root / "rom", seed_directory=None, scenario="world")
+                with patch.object(bench, "package_payload", side_effect=lambda path: path.read_bytes()), \
+                        patch.object(bench, "ensure_fresh_run"), \
+                        patch.object(bench, "wait_for_startup", side_effect=TimeoutError("capture interrupted")), \
+                        patch.object(bench.hashlib, "sha1") as sha1, \
+                        patch.object(bench.subprocess, "check_output", return_value=b"source snapshot"):
+                    sha1.return_value.hexdigest.return_value = "cf806ff2603640a748fca5026ded28802f1f4a50"
+                    with self.assertRaisesRegex(RuntimeError if changed else TimeoutError,
+                                                "Normal save" if changed else "capture interrupted"):
+                        bench.run_on_device(args, device)
+                self.assertEqual(device.get(bench.EBOOT), b"normal")
+                self.assertEqual(device.get(bench.SAVES + "/DK64.bin"), b"later save" if changed else b"save")
+                receipt = json.loads((args.output / "save-verification.json").read_text())
+                self.assertEqual(receipt["normal_saves_unchanged"], not changed)
+
+    def test_complete_run_does_not_send_global_controller_input(self):
+        class IsolatedDevice(FakeDevice):
+            def __init__(self):
+                super().__init__()
+                self.files.update({bench.SAVES + "/DK64.bin": b"save",
+                                   bench.SAVES + "/DK64.bin.bak": b"backup",
+                                   bench.DATA + "/DK64.z64": b"rom"})
+            def command(self, value):
+                self.commands.append(value)
+                if value.startswith(("press ", "release ")):
+                    raise AssertionError("Global controller input could act on LiveArea")
+                return "vitacompanion 1.06\n"
+            def mkdir(self, path):
+                pass
+            def list(self, path):
+                return ["DK64.bin", "DK64.bin.bak"]
+            def exists(self, path):
+                return path in self.files
+            def launch(self):
+                self.commands.append("launch " + bench.TITLE)
+                prefix = bench.DATA + "/isolated-run"
+                self.files.update({prefix + "-started.json": b'{"schema":1,"run":"isolated-run"}',
+                                   prefix + ".json": b'{"run":"isolated-run"}',
+                                   prefix + ".csv": b"events", prefix + "-profile.csv": b"profiles",
+                                   prefix + "-shutdown.json": b'{"run":"isolated-run","runtime_joined":true,"exit_code":0}'})
+        device = IsolatedDevice()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, data in (("original", b"normal"), ("package", b"benchmark"), ("rom", b"rom")):
+                (root / name).write_bytes(data)
+            args = SimpleNamespace(run_id="isolated-run", seconds=120, profile_every=0,
+                                   output=root / "run", original=root / "original", package=root / "package",
+                                   rom=root / "rom", seed_directory=None, scenario="attract")
+            with patch.object(bench, "package_payload", side_effect=lambda path: path.read_bytes()), \
+                    patch.object(bench.hashlib, "sha1") as sha1, \
+                    patch.object(bench.subprocess, "check_output", return_value=b"source snapshot"):
+                sha1.return_value.hexdigest.return_value = "cf806ff2603640a748fca5026ded28802f1f4a50"
+                self.assertEqual(bench.run_on_device(args, device), {"run": "isolated-run"})
+            self.assertEqual(device.get(bench.EBOOT), b"normal")
+            self.assertTrue(json.loads((args.output / "save-verification.json").read_text())["normal_saves_unchanged"])
+
+    def test_no_start_receipt_times_out_without_navigation(self):
+        device = Mock()
+        device.exists.return_value = False
+        clock = [0.0]
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(bench.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(bench.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            with self.assertRaisesRegex(TimeoutError, "foreground screen"):
+                bench.wait_for_startup(device, Path(temporary), "new-run", timeout=3)
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+        device.command.assert_not_called()
+        device.get.assert_not_called()
+        self.assertEqual(clock[0], 3)
+
+    def test_startup_requires_the_fresh_run_identity(self):
+        device = Mock()
+        device.exists.return_value = True
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            device.get.return_value = b'{"schema":1,"run":"old-run"}'
+            with self.assertRaisesRegex(ValueError, "startup receipt"):
+                bench.wait_for_startup(device, output, "new-run")
+            self.assertEqual(list(output.iterdir()), [])
+            device.get.return_value = b'{"schema":1,"run":"new-run"}'
+            bench.wait_for_startup(device, output, "new-run")
+            self.assertEqual((output / "new-run-started.json").read_bytes(), device.get.return_value)
+        device.command.assert_not_called()
+
     def test_recovery_preserves_an_existing_retirement_path(self):
         device = FakeDevice()
         device.files = {bench.EBOOT: b"benchmark", "backup": b"normal", "retired": b"preserved"}
@@ -247,6 +363,23 @@ class BenchmarkTests(unittest.TestCase):
             result = bench.record_lifecycle(CoreDevice(), {}, output, "capture")
             self.assertTrue(result["shutdown_complete"])
             self.assertEqual(result["new_core_dumps"], [])
+
+    def test_incomplete_run_retains_only_its_own_progress_logs(self):
+        class CoreDevice(FakeDevice):
+            def core_inventory(self):
+                return {}
+        device = CoreDevice()
+        device.files.update({bench.DATA + "/capture-startup.txt": b"game initialized",
+                             bench.DATA + "/capture-watchdog.log": b"poll=21",
+                             bench.DATA + "/old-startup.txt": b"stale"})
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            result = bench.record_lifecycle(device, {}, output, "capture")
+            self.assertFalse(result["shutdown_complete"])
+            self.assertEqual((output / "capture-startup.txt").read_bytes(), b"game initialized")
+            self.assertEqual((output / "capture-watchdog.log").read_bytes(), b"poll=21")
+            self.assertFalse((output / "old-startup.txt").exists())
+            self.assertEqual(device.commands, [])
 
     def test_lifecycle_inspection_failure_is_not_clean(self):
         class OfflineDevice(FakeDevice):
