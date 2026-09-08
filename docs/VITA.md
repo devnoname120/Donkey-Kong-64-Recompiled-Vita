@@ -9,6 +9,8 @@ Matched physical-Vita FPS comparisons and native depth controls are described in
 [the hardware performance report](VITA_FPS_VALIDATION.md). The
 [third performance pass](VITA_FPS_PASS3_VALIDATION.md) measures faster TMEM and
 vertex loading and distinguishes reduced rendering cost from game-frame throughput.
+The [architecture feasibility study](VITA_RENDERER_ARCHITECTURE.md) tests retained
+packets, sampler specialization and native GXM submission separately from live-game FPS.
 Broader gameplay and
 device coverage still require validation; these are development builds, not a
 compatibility-certified release.

@@ -55,6 +55,14 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "watchdog"):
             compare(*capture(), rows, metadata, "rap-crowd")
 
+    def test_architecture_replay_is_not_a_game_fps_control(self):
+        rows, metadata = capture()
+        metadata["architecture_probe"] = True
+        with self.assertRaisesRegex(ValueError, "Architecture"):
+            compare(*capture(), rows, metadata, "rap-crowd")
+        with self.assertRaisesRegex(ValueError, "Architecture"):
+            compare(rows, metadata, *capture(), "rap-crowd")
+
     def test_compiled_profile_branches_are_not_a_quiet_control(self):
         rows, metadata = capture()
         metadata["compiled_stage_profiling"] = True

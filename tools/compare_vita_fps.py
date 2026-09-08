@@ -47,6 +47,8 @@ def metrics(game: list[dict], graphics: list[dict]) -> dict:
 def compare(reference_rows: list[dict], reference_metadata: dict,
             candidate_rows: list[dict], candidate_metadata: dict, workload: str) -> dict:
     for metadata in (reference_metadata, candidate_metadata):
+        if metadata.get("architecture_probe"):
+            raise ValueError("Architecture replay captures cannot be used for game FPS comparisons")
         if metadata.get("debug_watchdog"):
             raise ValueError("Debug watchdog captures cannot be used for FPS comparisons")
         if metadata.get("external_input_attempted"):
